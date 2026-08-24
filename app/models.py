@@ -54,3 +54,8 @@ class ProductUpdate(BaseModel):
     name: str
     description: str
     image_data: str | None = None  # 안 보내면 기존 이미지 유지
+
+
+class GameScoreSubmit(BaseModel):
+    game: str  # "baseball" | "mole" | "simon" | "reaction"
+    score: int

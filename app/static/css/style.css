@@ -388,6 +388,190 @@
   }
   table.board-table td.col-title button:hover { color: var(--accent); text-decoration: underline; }
   table.board-table td.col-title .cmt-count { color: var(--accent); font-size: 11.5px; flex-shrink: 0; }
+  table.board-table td.col-title .reaction-count-badge { color: var(--warn); }
+
+  /* ===== 게시글 이모지 반응 ===== */
+  .reaction-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+  .reaction-btn {
+    display: flex; align-items: center; gap: 6px; padding: 6px 13px;
+    border-radius: 999px; border: 1px solid var(--border); background: var(--panel);
+    cursor: pointer; font-size: 14px; color: var(--text);
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  }
+  .reaction-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .reaction-btn:active { transform: translateY(0); }
+  .reaction-btn .count { font-size: 12px; font-weight: 600; color: var(--sub); }
+  .reaction-btn.active {
+    background: var(--accent-soft); border-color: var(--accent);
+  }
+  .reaction-btn.active .count { color: var(--accent); }
+
+  /* ===== 미니게임: 숫자야구 ===== */
+  .baseball-card { max-width: 480px; }
+  .baseball-rule { font-size: 12.5px; color: var(--sub); line-height: 1.7; margin: 0 0 18px; }
+  .baseball-rule strong { color: var(--text); }
+  .baseball-stats { display: flex; gap: 22px; font-size: 13px; color: var(--sub); margin-bottom: 18px; }
+  .baseball-stats strong { color: var(--text); font-size: 14px; }
+  .baseball-input-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .baseball-input-row input {
+    flex: 1; min-width: 0; font-size: 18px; letter-spacing: 8px; text-align: center; font-weight: 700;
+  }
+  .baseball-input-row button { flex-shrink: 0; white-space: nowrap; }
+  .baseball-win-banner {
+    background: rgba(61,220,132,0.12); color: var(--ok); border-radius: 10px;
+    padding: 12px 16px; font-size: 14px; font-weight: 700; text-align: center; margin-bottom: 16px;
+  }
+  .baseball-history { list-style: none; margin: 0; padding: 0; max-height: 280px; overflow-y: auto; }
+  .baseball-history-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 4px; border-bottom: 1px solid var(--border); font-size: 13.5px;
+  }
+  .baseball-history-item:last-child { border-bottom: none; }
+  .baseball-history-item .guess {
+    font-weight: 700; letter-spacing: 4px; font-family: "Courier New", monospace; color: var(--text);
+  }
+  .baseball-history-item .result { color: var(--sub); font-size: 12.5px; font-weight: 600; }
+  .baseball-history-item.win .result { color: var(--ok); }
+
+  /* ===== 미니게임: 전체 랭킹 (게임 목록 화면 맨 위, 눈에 띄는 카드형 패널) =====
+     게임 목록(타일 버튼들)과 확실히 구분되도록, 배경 톤이 다른 독립된 패널로 감싸고
+     맨 위에 무지개색 강조 바를 둬서 "이건 다른 섹션이야"가 한눈에 보이게 했다. */
+  .overall-leaderboard-panel {
+    position: relative; overflow: hidden;
+    border: 1px solid var(--border); border-radius: 18px;
+    background: var(--panel);
+    padding: 22px 24px 20px;
+    margin-bottom: 28px;
+    box-shadow: 0 16px 40px -24px rgba(0,0,0,0.5);
+  }
+  .overall-leaderboard-panel::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--accent), #f7941d, var(--ok));
+  }
+  .overall-leaderboard-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+  .overall-leaderboard-head .icon-badge {
+    flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent-soft); font-size: 21px;
+  }
+  .overall-leaderboard-head h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
+  .overall-leaderboard-desc { margin: 0; font-size: 12.5px; color: var(--sub); }
+  .overall-leaderboard-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;
+  }
+  .overall-leaderboard-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px;
+    transition: border-color 0.12s ease;
+  }
+  .overall-leaderboard-card:hover { border-color: var(--accent); }
+  .overall-leaderboard-card-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .overall-leaderboard-card-head .game-name { font-size: 13.5px; font-weight: 700; }
+  .leaderboard-subtitle {
+    font-size: 10.5px; font-weight: 600; color: var(--sub); white-space: nowrap;
+    background: var(--panel); border-radius: 999px; padding: 3px 8px;
+  }
+  .overall-leaderboard-card .leaderboard-subtitle { background: var(--bg); }
+
+  /* "게임 목록" 제목 아래로 타일이 이어지는 걸 명확히 하기 위한 여백 */
+  .minigame-list-heading { margin-top: 4px; }
+
+  .minigame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .minigame-tile {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px 20px; cursor: pointer; text-align: left;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+  }
+  .minigame-tile:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.18);
+  }
+  .minigame-tile-icon { font-size: 30px; margin-bottom: 4px; }
+  .minigame-tile-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .minigame-tile-desc { font-size: 12.5px; color: var(--sub); line-height: 1.5; }
+  .minigame-back-btn { margin-bottom: 16px; }
+
+  /* ===== 미니게임: 두더지잡기 ===== */
+  .mole-card { max-width: 480px; }
+  .mole-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px;
+  }
+  .mole-hole {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; cursor: pointer; overflow: hidden; padding: 0;
+  }
+  .mole-hole .mole-emoji {
+    transform: scale(0); transition: transform 0.12s ease-out; line-height: 1;
+  }
+  .mole-hole.up .mole-emoji { transform: scale(1); }
+  .mole-hole.up { border-color: var(--warn); }
+
+  /* ===== 미니게임: 색깔 기억 게임 (사이먼) ===== */
+  .simon-status { text-align: center; font-size: 13.5px; color: var(--sub); min-height: 20px; margin-bottom: 12px; font-weight: 600; }
+  .simon-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+    max-width: 260px; margin: 0 auto;
+  }
+  .simon-pad {
+    aspect-ratio: 1 / 1; border-radius: 18px; border: none; cursor: pointer; padding: 0;
+    opacity: 0.5; filter: saturate(0.6); transition: opacity 0.1s, filter 0.1s, transform 0.1s;
+  }
+  .simon-pad:hover { opacity: 0.7; }
+  .simon-pad.active { opacity: 1; filter: saturate(1.4) brightness(1.2); transform: scale(0.96); }
+  .simon-pad[data-color="red"] { background: #e5484d; }
+  .simon-pad[data-color="blue"] { background: #3b82f6; }
+  .simon-pad[data-color="green"] { background: #22c55e; }
+  .simon-pad[data-color="yellow"] { background: #eab308; }
+
+  /* ===== 미니게임: 반응속도 테스트 ===== */
+  .reaction-box {
+    height: 160px; border-radius: 16px; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; color: #fff; text-align: center; padding: 12px;
+    background: var(--sub); cursor: pointer; user-select: none; transition: background 0.12s ease-out;
+  }
+  .reaction-box.waiting { background: #e5484d; }
+  .reaction-box.ready { background: #22c55e; }
+  .reaction-box.fail { background: var(--warn); }
+
+  /* ===== 미니게임: 계정별 랭킹 (4개 게임 공통 — 게임 화면 안 랭킹 + 전체 랭킹 패널 둘 다 여기 스타일을 쓴다) =====
+     금/은/동 원형 배지 + 아바타 + 줄 사이 구분선으로, 순위표처럼 한눈에 읽히게 만들었다. */
+  .leaderboard-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .leaderboard-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+  .leaderboard-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+  .leaderboard-item {
+    display: flex; align-items: center; gap: 9px; padding: 8px 6px; font-size: 13.5px; position: relative;
+  }
+  .leaderboard-item + .leaderboard-item { border-top: 1px solid var(--border); }
+  .leaderboard-item.me { background: var(--accent-soft); border-radius: 8px; font-weight: 700; }
+  .leaderboard-item.me::before {
+    content: ""; position: absolute; left: -1px; top: 4px; bottom: 4px; width: 3px;
+    border-radius: 2px; background: var(--accent);
+  }
+  .leaderboard-rank {
+    width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: var(--sub); background: var(--panel);
+  }
+  .overall-leaderboard-card .leaderboard-rank,
+  .leaderboard-section .leaderboard-rank { background: var(--bg); }
+  .leaderboard-item:nth-child(1) .leaderboard-rank { background: linear-gradient(135deg, #ffe08a, #f0a92e); color: #5a3c00; }
+  .leaderboard-item:nth-child(2) .leaderboard-rank { background: linear-gradient(135deg, #eef1f5, #c3c9d3); color: #3a3f47; }
+  .leaderboard-item:nth-child(3) .leaderboard-rank { background: linear-gradient(135deg, #e9b285, #c17d45); color: #4a2c10; }
+  .leaderboard-username { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; color: var(--text); }
+  .leaderboard-username .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .leaderboard-item.me .me-chip {
+    font-size: 10px; font-weight: 700; color: var(--accent); background: var(--card);
+    border: 1px solid var(--accent); border-radius: 999px; padding: 1px 7px; flex-shrink: 0;
+  }
+  .leaderboard-score { color: var(--sub); font-weight: 700; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+  .leaderboard-item.me .leaderboard-score { color: var(--accent); }
+  .leaderboard-empty { font-size: 12.5px; color: var(--sub); padding: 14px 2px; text-align: center; }
+
   .cat-badge {
     display: inline-block; font-size: 11px; font-weight: 600; color: var(--accent);
     background: var(--accent-soft); border-radius: 999px; padding: 3px 10px;
@@ -445,7 +629,7 @@
   }
   .role-badge.admin { background: var(--accent-soft); color: var(--accent); border: none; }
 
-  .board-footer-row { display: flex; justify-content: flex-end; margin-top: 18px; }
+  .board-footer-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
   .pagination { display: flex; justify-content: center; align-items: center; gap: 5px; margin-top: 20px; }
   .pagination button {

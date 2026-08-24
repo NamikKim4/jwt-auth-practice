@@ -5,6 +5,7 @@ from models import PostCreate, PostUpdate, CommentCreate
 from repositories import posts as posts_repo
 from repositories import comments as comments_repo
 from repositories import notifications as notifications_repo
+from repositories import reactions as reactions_repo
 from security import get_current_user
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
@@ -105,3 +106,25 @@ def delete_comment(post_id: int, comment_id: int, current_user: dict = Depends(g
         raise HTTPException(status_code=403, detail="본인이 작성한 댓글만 삭제할 수 있어요.")
     comments_repo.delete_comment(comment_id)
     return {"message": "댓글이 삭제됐어요."}
+
+
+# ---------- 이모지 반응 ----------
+
+@router.get("/{post_id}/reactions")
+def list_reactions(post_id: int, current_user: dict = Depends(get_current_user)):
+    if posts_repo.get_post_author(post_id) is None:
+        raise HTTPException(status_code=404, detail="존재하지 않는 게시글이에요.")
+    return reactions_repo.get_reactions_summary(post_id, current_user["username"])
+
+
+@router.post("/{post_id}/reactions/{emoji}")
+def toggle_reaction(post_id: int, emoji: str, current_user: dict = Depends(get_current_user)):
+    if emoji not in reactions_repo.ALLOWED_EMOJIS:
+        raise HTTPException(status_code=400, detail="지원하지 않는 이모지예요.")
+    if posts_repo.get_post_author(post_id) is None:
+        raise HTTPException(status_code=404, detail="존재하지 않는 게시글이에요.")
+
+    reactions_repo.toggle_reaction(post_id, current_user["username"], emoji)
+    # 눌렀다/취소했다를 따로 알려주는 대신, 그냥 갱신된 전체 반응 현황을 돌려준다.
+    # (화면에서는 이 응답 하나로 버튼 5개를 통째로 다시 그리면 되니까 더 단순하다.)
+    return reactions_repo.get_reactions_summary(post_id, current_user["username"])

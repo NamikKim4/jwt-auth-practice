@@ -9,13 +9,19 @@ def list_posts(q: str | None = None, sort: str = "latest"):
             order_by = "p.views DESC, p.id DESC" if sort == "views" else "p.id DESC"
             sql = f"""
                 SELECT p.id, p.author, p.title, p.content, p.views, p.created_at,
-                       COALESCE(c.comment_count, 0) AS comment_count
+                       COALESCE(c.comment_count, 0) AS comment_count,
+                       COALESCE(rx.reaction_count, 0) AS reaction_count
                 FROM posts p
                 LEFT JOIN (
                     SELECT post_id, COUNT(*) AS comment_count
                     FROM comments
                     GROUP BY post_id
                 ) c ON c.post_id = p.id
+                LEFT JOIN (
+                    SELECT post_id, COUNT(*) AS reaction_count
+                    FROM post_reactions
+                    GROUP BY post_id
+                ) rx ON rx.post_id = p.id
                 {{where}}
                 ORDER BY {order_by};
             """
@@ -36,6 +42,7 @@ def list_posts(q: str | None = None, sort: str = "latest"):
                     "views": r[4],
                     "created_at": r[5],
                     "comment_count": r[6],
+                    "reaction_count": r[7],
                 }
                 for r in rows
             ]
@@ -91,13 +98,19 @@ def list_posts_page(q: str | None = None, sort: str = "latest", page: int = 1, p
             offset = max(page - 1, 0) * page_size
             sql = f"""
                 SELECT p.id, p.author, p.title, p.content, p.views, p.created_at,
-                       COALESCE(c.comment_count, 0) AS comment_count
+                       COALESCE(c.comment_count, 0) AS comment_count,
+                       COALESCE(rx.reaction_count, 0) AS reaction_count
                 FROM posts p
                 LEFT JOIN (
                     SELECT post_id, COUNT(*) AS comment_count
                     FROM comments
                     GROUP BY post_id
                 ) c ON c.post_id = p.id
+                LEFT JOIN (
+                    SELECT post_id, COUNT(*) AS reaction_count
+                    FROM post_reactions
+                    GROUP BY post_id
+                ) rx ON rx.post_id = p.id
                 {where}
                 ORDER BY {order_by}
                 LIMIT %s OFFSET %s;
@@ -113,6 +126,7 @@ def list_posts_page(q: str | None = None, sort: str = "latest", page: int = 1, p
                     "views": r[4],
                     "created_at": r[5],
                     "comment_count": r[6],
+                    "reaction_count": r[7],
                 }
                 for r in rows
             ]

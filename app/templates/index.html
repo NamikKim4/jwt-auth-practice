@@ -138,6 +138,9 @@
       <button class="nav-item" data-view="products">
         <span class="ic" aria-hidden="true">🎁</span><span class="label">상품등록 및 후기</span>
       </button>
+      <button class="nav-item" data-view="minigame">
+        <span class="ic" aria-hidden="true">🎮</span><span class="label">미니게임</span>
+      </button>
       <button class="nav-item" data-view="account">
         <span class="ic" aria-hidden="true">⚙️</span><span class="label">계정관리</span>
       </button>
@@ -234,6 +237,9 @@
               <div class="title" id="detail-title"></div>
               <div class="meta" id="detail-meta"></div>
               <div class="content" id="detail-content"></div>
+
+              <div class="reaction-bar" id="reaction-bar"></div>
+
               <div class="btn-row">
                 <button class="secondary" id="btn-back-from-detail">← 목록으로</button>
                 <span style="flex:1;"></span>
@@ -292,7 +298,7 @@
             </div>
 
             <div class="board-header">
-              <h2>기록 <span id="weather-count" style="color:var(--sub); font-weight:400;"></span></h2>
+              <h2>최근 기록 <span id="weather-count" style="color:var(--sub); font-weight:400;"></span></h2>
             </div>
 
             <div class="board-table-wrap">
@@ -305,8 +311,27 @@
             </div>
 
             <div class="board-footer-row">
+              <button class="secondary" id="btn-weather-history">🕓 이전 기록 보기</button>
               <button class="accent-orange-btn" id="btn-weather-write">✍️ 직접 기록 추가</button>
             </div>
+          </div>
+
+          <div id="weather-view-history" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-weather-history">← 최신 날씨로</button>
+            <div class="board-header">
+              <h2>이전 날씨 기록 <span id="weather-history-count" style="color:var(--sub); font-weight:400;"></span></h2>
+            </div>
+
+            <div class="board-table-wrap">
+              <table class="board-table">
+                <thead>
+                  <tr><th>시각</th><th>도시</th><th>날씨</th><th>기온</th><th>습도</th><th>풍속</th><th>등록</th></tr>
+                </thead>
+                <tbody id="weather-history-table-body"></tbody>
+              </table>
+            </div>
+
+            <nav class="pagination" id="weather-history-pagination" aria-label="이전 날씨 기록 페이지 이동"></nav>
           </div>
 
           <div id="weather-view-write" class="card hidden">
@@ -397,6 +422,205 @@
                 <button type="button" class="secondary" id="btn-product-cancel-write">취소</button>
               </div>
             </form>
+          </div>
+        </section>
+
+        <!-- 미니게임 -->
+        <section id="page-minigame" class="hidden">
+          <div class="page-hero">
+            <div class="decor-circle" style="width:150px; height:150px; top:-50px; right:-20px;"></div>
+            <div class="crumb">🏠 홈 <span>›</span> 미니게임</div>
+            <h1>미니게임 🎮</h1>
+          </div>
+          <p class="page-sub">잠깐 쉬어가는 코너예요. 하고 싶은 게임을 골라보세요.</p>
+
+          <!-- 게임 목록 -->
+          <div id="minigame-view-menu">
+            <!-- 전체 랭킹: 어떤 계정이 어떤 게임에서 몇 위인지, 게임 안 들어가고도 여기서 바로 확인 -->
+            <div class="overall-leaderboard-panel">
+              <div class="overall-leaderboard-head">
+                <span class="icon-badge" aria-hidden="true">🏆</span>
+                <div>
+                  <h3>전체 랭킹</h3>
+                  <p class="overall-leaderboard-desc">계정별로 게임마다 가장 잘한 기록만 모아서 보여줘요.</p>
+                </div>
+              </div>
+              <div class="overall-leaderboard-grid">
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">⚾ 숫자야구</span>
+                    <span class="leaderboard-subtitle">적을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-baseball"></ol>
+                </div>
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">🐹 두더지잡기</span>
+                    <span class="leaderboard-subtitle">많을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-mole"></ol>
+                </div>
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">🎨 색깔 기억 게임</span>
+                    <span class="leaderboard-subtitle">많을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-simon"></ol>
+                </div>
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">⚡ 반응속도 테스트</span>
+                    <span class="leaderboard-subtitle">짧을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-reaction"></ol>
+                </div>
+              </div>
+            </div>
+
+            <h3 class="section-heading minigame-list-heading"><span class="section-icon">🎮</span>게임 목록</h3>
+            <div class="minigame-grid">
+              <button type="button" class="minigame-tile" id="tile-baseball">
+                <div class="minigame-tile-icon">⚾</div>
+                <div class="minigame-tile-name">숫자야구</div>
+                <div class="minigame-tile-desc">서로 다른 숫자 3자리를 추리해서 맞혀보세요</div>
+              </button>
+              <button type="button" class="minigame-tile" id="tile-mole">
+                <div class="minigame-tile-icon">🐹</div>
+                <div class="minigame-tile-name">두더지잡기</div>
+                <div class="minigame-tile-desc">제한시간 20초 동안 최대한 많이 잡아보세요</div>
+              </button>
+              <button type="button" class="minigame-tile" id="tile-simon">
+                <div class="minigame-tile-icon">🎨</div>
+                <div class="minigame-tile-name">색깔 기억 게임</div>
+                <div class="minigame-tile-desc">불이 켜지는 순서를 기억해서 따라 눌러보세요</div>
+              </button>
+              <button type="button" class="minigame-tile" id="tile-reaction">
+                <div class="minigame-tile-icon">⚡</div>
+                <div class="minigame-tile-name">반응속도 테스트</div>
+                <div class="minigame-tile-desc">화면이 바뀌는 순간 최대한 빠르게 클릭해보세요</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- 숫자야구 -->
+          <div id="minigame-view-baseball" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-baseball">← 게임 목록</button>
+            <div class="card baseball-card">
+              <h3 class="section-heading"><span class="section-icon">⚾</span>숫자야구</h3>
+              <p class="baseball-rule">
+                서로 다른 숫자 3개로 만들어진 정답을 맞혀보세요.<br>
+                <strong>스트라이크</strong>: 숫자와 자리가 모두 맞음 · <strong>볼</strong>: 숫자는 있지만 자리가 다름 · <strong>아웃</strong>: 둘 다 없음
+              </p>
+
+              <div class="baseball-stats">
+                <span>시도 횟수: <strong id="baseball-tries-count">0</strong>회</span>
+                <span>최고 기록: <strong id="baseball-best">-</strong></span>
+              </div>
+
+              <div class="baseball-input-row">
+                <input type="text" id="baseball-guess-input" inputmode="numeric" maxlength="3" placeholder="숫자 3자리">
+                <button type="button" class="primary" id="baseball-submit-btn">확인</button>
+                <button type="button" class="secondary" id="baseball-new-btn">🔄 새 게임</button>
+              </div>
+
+              <div class="baseball-win-banner hidden" id="baseball-win-banner">
+                🎉 <span id="baseball-win-tries">-</span>번만에 정답을 맞혔어요!
+              </div>
+
+              <ul class="baseball-history" id="baseball-history"></ul>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10 (시도 횟수가 적을수록 상위)</h4>
+                <ol class="leaderboard-list" id="leaderboard-baseball"></ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- 두더지잡기 -->
+          <div id="minigame-view-mole" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-mole">← 게임 목록</button>
+            <div class="card mole-card">
+              <h3 class="section-heading"><span class="section-icon">🐹</span>두더지잡기</h3>
+              <p class="baseball-rule">제한시간 20초 동안 튀어나오는 두더지를 최대한 많이 클릭해서 잡아보세요!</p>
+
+              <div class="baseball-stats">
+                <span>점수: <strong id="mole-score">0</strong></span>
+                <span>남은 시간: <strong id="mole-timer">20</strong>초</span>
+                <span>최고 점수: <strong id="mole-best">-</strong></span>
+              </div>
+
+              <button type="button" class="primary" id="mole-start-btn" style="width:100%; margin-bottom:18px;">🐹 게임 시작</button>
+
+              <div class="mole-grid" id="mole-grid">
+                <button type="button" class="mole-hole" data-hole="0"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="1"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="2"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="3"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="4"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="5"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="6"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="7"><span class="mole-emoji"></span></button>
+                <button type="button" class="mole-hole" data-hole="8"><span class="mole-emoji"></span></button>
+              </div>
+
+              <div class="baseball-win-banner hidden" id="mole-result-banner"></div>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10</h4>
+                <ol class="leaderboard-list" id="leaderboard-mole"></ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- 색깔 기억 게임 (사이먼) -->
+          <div id="minigame-view-simon" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-simon">← 게임 목록</button>
+            <div class="card mole-card">
+              <h3 class="section-heading"><span class="section-icon">🎨</span>색깔 기억 게임</h3>
+              <p class="baseball-rule">버튼이 순서대로 반짝이면, 같은 순서로 따라 눌러보세요. 맞히면 다음 라운드에서 순서가 하나 더 늘어나요.</p>
+
+              <div class="baseball-stats">
+                <span>라운드: <strong id="simon-round">0</strong></span>
+                <span>최고 기록: <strong id="simon-best">-</strong></span>
+              </div>
+
+              <button type="button" class="primary" id="simon-start-btn" style="width:100%; margin-bottom:16px;">🎨 게임 시작</button>
+
+              <p class="simon-status" id="simon-status"></p>
+
+              <div class="simon-grid">
+                <button type="button" class="simon-pad" data-color="red" aria-label="빨강"></button>
+                <button type="button" class="simon-pad" data-color="blue" aria-label="파랑"></button>
+                <button type="button" class="simon-pad" data-color="green" aria-label="초록"></button>
+                <button type="button" class="simon-pad" data-color="yellow" aria-label="노랑"></button>
+              </div>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10</h4>
+                <ol class="leaderboard-list" id="leaderboard-simon"></ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- 반응속도 테스트 -->
+          <div id="minigame-view-reaction" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-reaction">← 게임 목록</button>
+            <div class="card mole-card">
+              <h3 class="section-heading"><span class="section-icon">⚡</span>반응속도 테스트</h3>
+              <p class="baseball-rule">아래 박스가 <strong>초록색</strong>으로 바뀌는 순간 최대한 빠르게 클릭하세요. 너무 일찍 누르면 실패해요!</p>
+
+              <div class="baseball-stats">
+                <span>최근 기록: <strong id="reaction-last">-</strong></span>
+                <span>최고 기록: <strong id="reaction-best">-</strong></span>
+              </div>
+
+              <div class="reaction-box" id="reaction-box">클릭해서 시작</div>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10 (반응 시간이 짧을수록 상위)</h4>
+                <ol class="leaderboard-list" id="leaderboard-reaction"></ol>
+              </div>
+            </div>
           </div>
         </section>
 

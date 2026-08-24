@@ -20,6 +20,15 @@ def list_weather(limit: int = 30):
     return [_serialize(doc) for doc in cursor]
 
 
+def list_weather_page(page: int = 1, page_size: int = 10):
+    """'이전 기록' 화면에서 쓰는 페이지네이션 버전. 게시판(list_posts_page)과 같은 모양으로 돌려준다."""
+    total = count_weather()
+    skip = max(page - 1, 0) * page_size
+    cursor = get_weather_collection().find().sort("recorded_at", -1).skip(skip).limit(page_size)
+    items = [_serialize(doc) for doc in cursor]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
 def get_latest_weather():
     doc = get_weather_collection().find_one(sort=[("recorded_at", -1)])
     return _serialize(doc) if doc else None

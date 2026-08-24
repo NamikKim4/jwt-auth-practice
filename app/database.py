@@ -53,6 +53,35 @@ def ensure_tables():
             # 예전 버전 DB에 이미 posts 테이블이 있던 경우를 위한 안전장치
             cur.execute("ALTER TABLE posts ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;")
 
+            # 게시글 이모지 반응. (post_id, username, emoji)가 겹치면 안 되게 해서
+            # 같은 사람이 같은 이모지를 두 번 누르면 "취소"로 처리할 수 있게 한다.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS post_reactions (
+                    id SERIAL PRIMARY KEY,
+                    post_id INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+                    username TEXT NOT NULL,
+                    emoji TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE (post_id, username, emoji)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_post_reactions_post ON post_reactions (post_id);
+            """)
+
+            # 미니게임 랭킹: 계정(username)별 게임(game)당 "본인 최고 기록" 딱 한 줄만 저장한다.
+            # (game, username)이 겹치면 안 되게 해서, 더 잘했을 때만 갱신하는 로직을 UNIQUE + ON CONFLICT로 구현한다.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS game_scores (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    game TEXT NOT NULL,
+                    score INTEGER NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE (username, game)
+                );
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS comments (
                     id SERIAL PRIMARY KEY,

@@ -85,9 +85,14 @@
 
   // ---------- 사이트 레이아웃: 페이지 전환 ----------
 
-  const PAGES = ["home", "board", "weather", "products", "account", "files", "export", "activity", "profile", "admin"];
+  const PAGES = ["home", "board", "weather", "products", "minigame", "account", "files", "export", "activity", "profile", "admin"];
 
   function gotoPage(page) {
+    // 다른 화면으로 넘어갈 때 게임 타이머/진행중인 시퀀스가 안 보이는 곳에서 계속 도는 일이 없게 정리한다.
+    stopMoleGame();
+    stopSimonGame();
+    stopReactionTest();
+
     PAGES.forEach((p) => {
       document.getElementById("page-" + p).classList.toggle("hidden", p !== page);
     });
@@ -99,6 +104,7 @@
     if (page === "board") showListView();
     if (page === "weather") showWeatherListView();
     if (page === "products") showProductListView();
+    if (page === "minigame") showMinigameMenu();
     if (page === "files") loadFileList();
     if (page === "activity") loadActivity();
     if (page === "profile") refreshProfile();
@@ -899,9 +905,55 @@
       deleteBtn.onclick = () => handleDelete(post.id);
 
       await loadComments(post.id);
+      await loadReactions(post.id);
     } catch (err) {
       flash(appMsgBox, err.message, "err");
       showListView();
+    }
+  }
+
+  // ---------- 이모지 반응 ----------
+
+  function renderReactionBar(postId, reactions) {
+    const bar = document.getElementById("reaction-bar");
+    bar.innerHTML = "";
+    reactions.forEach((r) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "reaction-btn" + (r.reacted_by_me ? " active" : "");
+
+      const emojiSpan = document.createElement("span");
+      emojiSpan.textContent = r.emoji;
+      btn.appendChild(emojiSpan);
+
+      const countSpan = document.createElement("span");
+      countSpan.className = "count";
+      countSpan.textContent = r.count;
+      btn.appendChild(countSpan);
+
+      btn.addEventListener("click", () => toggleReaction(postId, r.emoji));
+      bar.appendChild(btn);
+    });
+  }
+
+  async function loadReactions(postId) {
+    try {
+      const reactions = await api("/api/posts/" + postId + "/reactions");
+      renderReactionBar(postId, reactions);
+    } catch (err) {
+      // 반응 목록은 부가 기능이라, 실패해도 게시글 본문/댓글은 그대로 보여준다.
+    }
+  }
+
+  async function toggleReaction(postId, emoji) {
+    try {
+      const reactions = await api(
+        "/api/posts/" + postId + "/reactions/" + encodeURIComponent(emoji),
+        { method: "POST" }
+      );
+      renderReactionBar(postId, reactions);
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
     }
   }
 
@@ -995,6 +1047,7 @@
   function hideAllWeatherViews() {
     document.getElementById("weather-view-list").classList.add("hidden");
     document.getElementById("weather-view-write").classList.add("hidden");
+    document.getElementById("weather-view-history").classList.add("hidden");
   }
 
   function sourceBadgeHtml(source, createdBy) {
@@ -1032,8 +1085,8 @@
     const countEl = document.getElementById("weather-count");
     tbody.innerHTML = "";
     try {
-      const records = await api("/api/weather?limit=30");
-      countEl.textContent = "(" + records.length + ")";
+      const records = await api("/api/weather?limit=10");
+      countEl.textContent = "(최근 " + records.length + "개)";
 
       if (records.length === 0) {
         const tr = document.createElement("tr");
@@ -1059,6 +1112,90 @@
       flash(appMsgBox, err.message, "err");
     }
   }
+
+  // ---------- 날씨: 이전 기록(페이지네이션) ----------
+
+  let WEATHER_HISTORY_PAGE = 1;
+  const WEATHER_HISTORY_PAGE_SIZE = 10;
+
+  async function showWeatherHistoryView() {
+    hideAllWeatherViews();
+    document.getElementById("weather-view-history").classList.remove("hidden");
+    await loadWeatherHistoryPage(1);
+  }
+
+  async function loadWeatherHistoryPage(page) {
+    const tbody = document.getElementById("weather-history-table-body");
+    const countEl = document.getElementById("weather-history-count");
+    if (page) WEATHER_HISTORY_PAGE = page;
+    tbody.innerHTML = "";
+    try {
+      const params = new URLSearchParams();
+      params.set("page", WEATHER_HISTORY_PAGE);
+      params.set("page_size", WEATHER_HISTORY_PAGE_SIZE);
+      const data = await api("/api/weather?" + params.toString());
+      countEl.textContent = "(전체 " + data.total + "개)";
+
+      if (data.items.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="7"><div class="empty-state"><div class="icon">🌤️</div>기록이 없어요.</div></td>`;
+        tbody.appendChild(tr);
+        document.getElementById("weather-history-pagination").innerHTML = "";
+        return;
+      }
+
+      data.items.forEach((r) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${timeAgo(r.recorded_at)}</td>
+          <td>${r.city}</td>
+          <td>${r.emoji || ""} ${r.description}</td>
+          <td>${r.temperature_c}°C</td>
+          <td>${r.humidity_percent != null ? r.humidity_percent + "%" : "-"}</td>
+          <td>${r.wind_speed_ms != null ? r.wind_speed_ms + "m/s" : "-"}</td>
+          <td>${sourceBadgeHtml(r.source, r.created_by)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      renderWeatherHistoryPagination(data.total, data.page, data.page_size);
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    }
+  }
+
+  function renderWeatherHistoryPagination(total, page, pageSize) {
+    const pagEl = document.getElementById("weather-history-pagination");
+    pagEl.innerHTML = "";
+    const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+    if (totalPages <= 1) return;
+
+    const makeBtn = (label, targetPage, opts = {}) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      if (opts.current) btn.setAttribute("aria-current", "page");
+      if (opts.disabled) btn.disabled = true;
+      else btn.addEventListener("click", () => loadWeatherHistoryPage(targetPage));
+      return btn;
+    };
+
+    pagEl.appendChild(makeBtn("‹", page - 1, { disabled: page <= 1 }));
+
+    const windowSize = 5;
+    let start = Math.max(1, page - Math.floor(windowSize / 2));
+    let end = Math.min(totalPages, start + windowSize - 1);
+    start = Math.max(1, end - windowSize + 1);
+
+    for (let p = start; p <= end; p++) {
+      pagEl.appendChild(makeBtn(String(p), p, { current: p === page }));
+    }
+
+    pagEl.appendChild(makeBtn("›", page + 1, { disabled: page >= totalPages }));
+  }
+
+  document.getElementById("btn-weather-history").addEventListener("click", showWeatherHistoryView);
+  document.getElementById("btn-back-from-weather-history").addEventListener("click", showWeatherListView);
 
   function showWeatherWriteView() {
     hideAllWeatherViews();
@@ -1415,6 +1552,12 @@
           cmt.textContent = "[" + post.comment_count + "]";
           titleCell.appendChild(cmt);
         }
+        if (post.reaction_count > 0) {
+          const rx = document.createElement("span");
+          rx.className = "cmt-count reaction-count-badge";
+          rx.textContent = "😀" + post.reaction_count;
+          titleCell.appendChild(rx);
+        }
         titleTd.appendChild(titleCell);
         tr.appendChild(titleTd);
 
@@ -1608,3 +1751,540 @@
       btn.disabled = false;
     }
   });
+
+  // ---------- 미니게임: 계정별 랭킹 (4개 게임 공통) ----------
+  // 최고 기록은 localStorage(내 브라우저 전용)에도 남기지만, 그와 별개로 서버 DB에도
+  // 저장해서 "다른 계정과 비교한 순위"를 볼 수 있게 한다. 서버는 계정당 게임당 최고 기록 1개만 들고 있는다.
+
+  const GAME_SCORE_FORMAT = {
+    baseball: (v) => v + "회",
+    mole: (v) => v + "점",
+    simon: (v) => v + "라운드",
+    reaction: (v) => v + "ms",
+  };
+
+  // elId를 따로 받는 이유: 같은 게임의 랭킹을 "게임 화면 안(leaderboard-xxx)"과
+  // "미니게임 목록 화면 상단 전체 랭킹(menu-leaderboard-xxx)" 두 군데에 같이 그려야 하기 때문.
+  function renderLeaderboardInto(elId, game, list) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!list || list.length === 0) {
+      el.innerHTML = '<li class="leaderboard-empty">🏅 아직 등록된 기록이 없어요.<br>첫 기록의 주인공이 되어보세요!</li>';
+      return;
+    }
+    const medals = ["🥇", "🥈", "🥉"];
+    el.innerHTML = "";
+    list.forEach((row, i) => {
+      const li = document.createElement("li");
+      li.className = "leaderboard-item" + (row.is_me ? " me" : "");
+
+      // 1~3등은 메달 이모지, 나머지는 원 안에 순위 숫자만 (자리가 좁아서 "위"는 생략)
+      const rank = document.createElement("span");
+      rank.className = "leaderboard-rank";
+      rank.textContent = medals[i] || String(i + 1);
+
+      const nameWrap = document.createElement("span");
+      nameWrap.className = "leaderboard-username";
+      nameWrap.appendChild(makeAvatar(row.username, "avatar-xs"));
+      const nameText = document.createElement("span");
+      nameText.className = "name";
+      nameText.textContent = row.username;
+      nameWrap.appendChild(nameText);
+      if (row.is_me) {
+        const chip = document.createElement("span");
+        chip.className = "me-chip";
+        chip.textContent = "나";
+        nameWrap.appendChild(chip);
+      }
+
+      const score = document.createElement("span");
+      score.className = "leaderboard-score";
+      score.textContent = GAME_SCORE_FORMAT[game](row.score);
+
+      li.append(rank, nameWrap, score);
+      el.appendChild(li);
+    });
+  }
+
+  function renderLeaderboard(game, list) {
+    renderLeaderboardInto("leaderboard-" + game, game, list);
+  }
+
+  async function loadLeaderboard(game) {
+    try {
+      const list = await api("/api/games/scores/" + game);
+      renderLeaderboard(game, list);
+    } catch (e) { /* 랭킹 로드 실패는 게임 진행에 지장 없이 조용히 넘어간다 */ }
+  }
+
+  const ALL_GAMES = ["baseball", "mole", "simon", "reaction"];
+
+  // 미니게임 목록 화면 맨 위 "전체 랭킹" — 게임 안에 들어가지 않아도 4개 게임 순위를 한눈에 볼 수 있게 한다.
+  async function loadOverallLeaderboards() {
+    for (const game of ALL_GAMES) {
+      try {
+        const list = await api("/api/games/scores/" + game);
+        renderLeaderboardInto("menu-leaderboard-" + game, game, list);
+      } catch (e) { /* 게임 하나가 실패해도 나머지는 계속 보여준다 */ }
+    }
+  }
+
+  async function submitGameScore(game, score) {
+    try {
+      const list = await api("/api/games/scores", { method: "POST", json: { game, score } });
+      renderLeaderboard(game, list);
+    } catch (e) { /* 랭킹 기록 실패해도 게임 자체는 정상 진행된 것이므로 조용히 넘어간다 */ }
+  }
+
+  // ---------- 미니게임: 숫자야구 ----------
+  // 서버/DB 없이 브라우저 안에서만 돌아가는 순수 클라이언트 게임. 최고 기록만 localStorage에 남긴다.
+
+  const BASEBALL_BEST_KEY = "jwt_auth_practice_baseball_best";
+  let BASEBALL_ANSWER = null;
+  let BASEBALL_TRIES = 0;
+  let BASEBALL_WON = false;
+
+  function judgeBaseballGuess(guess) {
+    let strikes = 0;
+    let balls = 0;
+    for (let i = 0; i < 3; i++) {
+      if (guess[i] === BASEBALL_ANSWER[i]) strikes++;
+      else if (BASEBALL_ANSWER.includes(guess[i])) balls++;
+    }
+    return { strikes, balls };
+  }
+
+  function updateBaseballBestDisplay(newScore) {
+    let best = null;
+    try { best = localStorage.getItem(BASEBALL_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newScore !== undefined && (best === null || newScore < Number(best))) {
+      best = newScore;
+      try { localStorage.setItem(BASEBALL_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("baseball-best").textContent = best === null ? "-" : best + "회";
+  }
+
+  function newBaseballGame() {
+    // 0~9 중 서로 다른 숫자 3개를 무작위로 뽑는다 (카드 셔플과 같은 방식).
+    const digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    for (let i = digits.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [digits[i], digits[j]] = [digits[j], digits[i]];
+    }
+    BASEBALL_ANSWER = digits.slice(0, 3).join("");
+    BASEBALL_TRIES = 0;
+    BASEBALL_WON = false;
+
+    document.getElementById("baseball-history").innerHTML = "";
+    document.getElementById("baseball-tries-count").textContent = "0";
+    document.getElementById("baseball-win-banner").classList.add("hidden");
+    const input = document.getElementById("baseball-guess-input");
+    input.value = "";
+    input.disabled = false;
+    document.getElementById("baseball-submit-btn").disabled = false;
+    updateBaseballBestDisplay();
+  }
+
+  function submitBaseballGuess() {
+    if (BASEBALL_WON) return;
+    const input = document.getElementById("baseball-guess-input");
+    const guess = input.value.trim();
+
+    if (!/^\d{3}$/.test(guess) || new Set(guess.split("")).size !== 3) {
+      flash(appMsgBox, "서로 다른 숫자 3자리를 입력해주세요.", "err");
+      return;
+    }
+
+    BASEBALL_TRIES++;
+    document.getElementById("baseball-tries-count").textContent = BASEBALL_TRIES;
+
+    const { strikes, balls } = judgeBaseballGuess(guess);
+    const isWin = strikes === 3;
+    const resultText = isWin ? "🎉 정답!" : (strikes === 0 && balls === 0) ? "아웃" : `${strikes}스트라이크 ${balls}볼`;
+
+    const li = document.createElement("li");
+    li.className = "baseball-history-item" + (isWin ? " win" : "");
+    const guessSpan = document.createElement("span");
+    guessSpan.className = "guess";
+    guessSpan.textContent = guess;
+    const resultSpan = document.createElement("span");
+    resultSpan.className = "result";
+    resultSpan.textContent = resultText;
+    li.append(guessSpan, resultSpan);
+    document.getElementById("baseball-history").prepend(li);
+
+    input.value = "";
+
+    if (isWin) {
+      BASEBALL_WON = true;
+      input.disabled = true;
+      document.getElementById("baseball-submit-btn").disabled = true;
+      document.getElementById("baseball-win-tries").textContent = BASEBALL_TRIES;
+      document.getElementById("baseball-win-banner").classList.remove("hidden");
+      updateBaseballBestDisplay(BASEBALL_TRIES);
+      submitGameScore("baseball", BASEBALL_TRIES);
+    }
+  }
+
+  document.getElementById("baseball-submit-btn").addEventListener("click", submitBaseballGuess);
+  document.getElementById("baseball-new-btn").addEventListener("click", newBaseballGame);
+  document.getElementById("baseball-guess-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitBaseballGuess();
+  });
+  document.getElementById("baseball-guess-input").addEventListener("input", (e) => {
+    // 숫자가 아닌 문자는 입력 즉시 걸러낸다.
+    e.target.value = e.target.value.replace(/[^0-9]/g, "");
+  });
+
+  newBaseballGame();
+
+  // ---------- 미니게임: 게임 목록 ↔ 개별 게임 화면 전환 ----------
+
+  function hideAllMinigameViews() {
+    document.getElementById("minigame-view-menu").classList.add("hidden");
+    document.getElementById("minigame-view-baseball").classList.add("hidden");
+    document.getElementById("minigame-view-mole").classList.add("hidden");
+    document.getElementById("minigame-view-simon").classList.add("hidden");
+    document.getElementById("minigame-view-reaction").classList.add("hidden");
+  }
+
+  function showMinigameMenu() {
+    // "← 게임 목록"으로 돌아올 때도(페이지를 완전히 떠나지 않고) 진행중이던 게임 타이머를 정리한다.
+    stopMoleGame();
+    stopSimonGame();
+    stopReactionTest();
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-menu").classList.remove("hidden");
+    loadOverallLeaderboards();
+  }
+
+  function showBaseballView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-baseball").classList.remove("hidden");
+    loadLeaderboard("baseball");
+  }
+
+  function showMoleView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-mole").classList.remove("hidden");
+    loadLeaderboard("mole");
+  }
+
+  function showSimonView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-simon").classList.remove("hidden");
+    loadLeaderboard("simon");
+  }
+
+  function showReactionView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-reaction").classList.remove("hidden");
+    loadLeaderboard("reaction");
+  }
+
+  document.getElementById("tile-baseball").addEventListener("click", showBaseballView);
+  document.getElementById("tile-mole").addEventListener("click", showMoleView);
+  document.getElementById("tile-simon").addEventListener("click", showSimonView);
+  document.getElementById("tile-reaction").addEventListener("click", showReactionView);
+  document.getElementById("btn-back-from-baseball").addEventListener("click", showMinigameMenu);
+  document.getElementById("btn-back-from-mole").addEventListener("click", showMinigameMenu);
+  document.getElementById("btn-back-from-simon").addEventListener("click", showMinigameMenu);
+  document.getElementById("btn-back-from-reaction").addEventListener("click", showMinigameMenu);
+
+  // ---------- 미니게임: 두더지잡기 ----------
+  // setInterval(카운트다운)과 setTimeout(두더지 등장/숨김)을 같이 쓰는 타이머 기반 게임.
+  // 다른 화면으로 넘어갈 때 stopMoleGame()으로 타이머를 반드시 정리해줘야, 안 보이는 곳에서
+  // 두더지가 계속 튀어나오거나 시간이 계속 줄어드는 일이 없다.
+
+  const MOLE_BEST_KEY = "jwt_auth_practice_mole_best";
+  const MOLE_DURATION_SEC = 20;
+  let MOLE_SCORE = 0;
+  let MOLE_TIME_LEFT = MOLE_DURATION_SEC;
+  let MOLE_PLAYING = false;
+  let MOLE_COUNTDOWN_ID = null;
+  let MOLE_SPAWN_TIMEOUT_ID = null;
+  let MOLE_HIDE_TIMEOUT_ID = null;
+  let MOLE_ACTIVE_HOLE = null;
+
+  function updateMoleBestDisplay(newScore) {
+    let best = null;
+    try { best = localStorage.getItem(MOLE_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newScore !== undefined && (best === null || newScore > Number(best))) {
+      best = newScore;
+      try { localStorage.setItem(MOLE_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("mole-best").textContent = best === null ? "-" : best + "점";
+  }
+
+  function hideActiveMole() {
+    if (MOLE_ACTIVE_HOLE !== null) {
+      const holeEl = document.querySelector('.mole-hole[data-hole="' + MOLE_ACTIVE_HOLE + '"]');
+      if (holeEl) holeEl.classList.remove("up");
+      MOLE_ACTIVE_HOLE = null;
+    }
+    if (MOLE_HIDE_TIMEOUT_ID !== null) {
+      clearTimeout(MOLE_HIDE_TIMEOUT_ID);
+      MOLE_HIDE_TIMEOUT_ID = null;
+    }
+  }
+
+  function scheduleMoleSpawn() {
+    const delay = 300 + Math.random() * 500;
+    MOLE_SPAWN_TIMEOUT_ID = setTimeout(spawnMole, delay);
+  }
+
+  function spawnMole() {
+    if (!MOLE_PLAYING) return;
+    hideActiveMole();
+    const holeIndex = Math.floor(Math.random() * 9);
+    MOLE_ACTIVE_HOLE = holeIndex;
+    const holeEl = document.querySelector('.mole-hole[data-hole="' + holeIndex + '"]');
+    holeEl.querySelector(".mole-emoji").textContent = "🐹";
+    holeEl.classList.add("up");
+
+    const visibleTime = 550 + Math.random() * 350;
+    MOLE_HIDE_TIMEOUT_ID = setTimeout(() => {
+      hideActiveMole();
+      if (MOLE_PLAYING) scheduleMoleSpawn();
+    }, visibleTime);
+  }
+
+  function handleMoleClick(holeIndex) {
+    if (!MOLE_PLAYING || MOLE_ACTIVE_HOLE !== holeIndex) return;
+    MOLE_SCORE++;
+    document.getElementById("mole-score").textContent = MOLE_SCORE;
+    hideActiveMole();
+    scheduleMoleSpawn();
+  }
+
+  document.querySelectorAll(".mole-hole").forEach((holeEl) => {
+    holeEl.addEventListener("click", () => handleMoleClick(Number(holeEl.dataset.hole)));
+  });
+
+  function startMoleGame() {
+    stopMoleGame();
+    MOLE_SCORE = 0;
+    MOLE_TIME_LEFT = MOLE_DURATION_SEC;
+    MOLE_PLAYING = true;
+    document.getElementById("mole-score").textContent = "0";
+    document.getElementById("mole-timer").textContent = String(MOLE_TIME_LEFT);
+    document.getElementById("mole-result-banner").classList.add("hidden");
+    document.getElementById("mole-start-btn").disabled = true;
+    document.getElementById("mole-start-btn").textContent = "게임 진행 중…";
+
+    scheduleMoleSpawn();
+    MOLE_COUNTDOWN_ID = setInterval(() => {
+      MOLE_TIME_LEFT--;
+      document.getElementById("mole-timer").textContent = String(MOLE_TIME_LEFT);
+      if (MOLE_TIME_LEFT <= 0) endMoleGame();
+    }, 1000);
+  }
+
+  function stopMoleGame() {
+    MOLE_PLAYING = false;
+    hideActiveMole();
+    if (MOLE_SPAWN_TIMEOUT_ID !== null) { clearTimeout(MOLE_SPAWN_TIMEOUT_ID); MOLE_SPAWN_TIMEOUT_ID = null; }
+    if (MOLE_COUNTDOWN_ID !== null) { clearInterval(MOLE_COUNTDOWN_ID); MOLE_COUNTDOWN_ID = null; }
+  }
+
+  function endMoleGame() {
+    stopMoleGame();
+    document.getElementById("mole-start-btn").disabled = false;
+    document.getElementById("mole-start-btn").textContent = "🐹 다시 시작";
+    const banner = document.getElementById("mole-result-banner");
+    banner.textContent = `⏰ 시간 종료! ${MOLE_SCORE}점을 잡았어요.`;
+    banner.classList.remove("hidden");
+    updateMoleBestDisplay(MOLE_SCORE);
+    submitGameScore("mole", MOLE_SCORE);
+  }
+
+  document.getElementById("mole-start-btn").addEventListener("click", startMoleGame);
+  updateMoleBestDisplay();
+
+  // ---------- 미니게임: 색깔 기억 게임 (사이먼) ----------
+  // async/await로 순서를 하나씩 보여주는데, 중간에 다른 화면으로 넘어가면 그 진행 중이던
+  // await가 나중에 깨어나서 엉뚱하게 화면을 건드리면 안 되니까, SIMON_TOKEN으로 "이 실행이
+  // 아직 유효한 게임인지"를 매 단계마다 확인한다 (stopSimonGame이 토큰을 올려서 무효화시킴).
+
+  const SIMON_COLORS = ["red", "blue", "green", "yellow"];
+  const SIMON_BEST_KEY = "jwt_auth_practice_simon_best";
+  let SIMON_SEQUENCE = [];
+  let SIMON_USER_INDEX = 0;
+  let SIMON_ACCEPTING_INPUT = false;
+  let SIMON_TOKEN = 0;
+  let SIMON_TIMEOUT_IDS = [];
+
+  function updateSimonBestDisplay(newRound) {
+    let best = null;
+    try { best = localStorage.getItem(SIMON_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newRound !== undefined && (best === null || newRound > Number(best))) {
+      best = newRound;
+      try { localStorage.setItem(SIMON_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("simon-best").textContent = best === null ? "-" : best + "라운드";
+  }
+
+  function simonSleep(ms) {
+    return new Promise((resolve) => {
+      const id = setTimeout(resolve, ms);
+      SIMON_TIMEOUT_IDS.push(id);
+    });
+  }
+
+  function simonPad(color) {
+    return document.querySelector('.simon-pad[data-color="' + color + '"]');
+  }
+
+  async function playSimonSequence() {
+    const myToken = SIMON_TOKEN;
+    SIMON_ACCEPTING_INPUT = false;
+    document.getElementById("simon-status").textContent = "차례를 보여주는 중…";
+
+    for (const color of SIMON_SEQUENCE) {
+      if (myToken !== SIMON_TOKEN) return; // 그 사이에 게임이 중단/재시작됨 → 여기서 멈춘다
+      simonPad(color).classList.add("active");
+      await simonSleep(450);
+      if (myToken !== SIMON_TOKEN) return;
+      simonPad(color).classList.remove("active");
+      await simonSleep(200);
+    }
+
+    if (myToken !== SIMON_TOKEN) return;
+    SIMON_USER_INDEX = 0;
+    SIMON_ACCEPTING_INPUT = true;
+    document.getElementById("simon-status").textContent = "👉 순서대로 따라 눌러보세요!";
+  }
+
+  function advanceSimonRound() {
+    SIMON_SEQUENCE.push(SIMON_COLORS[Math.floor(Math.random() * SIMON_COLORS.length)]);
+    document.getElementById("simon-round").textContent = SIMON_SEQUENCE.length;
+    playSimonSequence();
+  }
+
+  function handleSimonPadClick(color) {
+    if (!SIMON_ACCEPTING_INPUT) return;
+
+    const pad = simonPad(color);
+    pad.classList.add("active");
+    setTimeout(() => pad.classList.remove("active"), 150);
+
+    if (color !== SIMON_SEQUENCE[SIMON_USER_INDEX]) {
+      const clearedRounds = SIMON_SEQUENCE.length - 1;
+      SIMON_ACCEPTING_INPUT = false;
+      document.getElementById("simon-status").textContent =
+        clearedRounds > 0 ? `❌ 틀렸어요! ${clearedRounds}라운드까지 성공했어요.` : "❌ 틀렸어요! 다시 도전해보세요.";
+      document.getElementById("simon-start-btn").disabled = false;
+      document.getElementById("simon-start-btn").textContent = "🔄 다시 시작";
+      updateSimonBestDisplay(clearedRounds);
+      submitGameScore("simon", clearedRounds);
+      return;
+    }
+
+    SIMON_USER_INDEX++;
+    if (SIMON_USER_INDEX === SIMON_SEQUENCE.length) {
+      SIMON_ACCEPTING_INPUT = false;
+      document.getElementById("simon-status").textContent = "✅ 맞았어요! 다음 라운드…";
+      const id = setTimeout(advanceSimonRound, 800);
+      SIMON_TIMEOUT_IDS.push(id);
+    }
+  }
+
+  document.querySelectorAll(".simon-pad").forEach((pad) => {
+    pad.addEventListener("click", () => handleSimonPadClick(pad.dataset.color));
+  });
+
+  function startSimonGame() {
+    stopSimonGame();
+    SIMON_SEQUENCE = [];
+    document.getElementById("simon-status").textContent = "";
+    document.getElementById("simon-round").textContent = "0";
+    document.getElementById("simon-start-btn").disabled = true;
+    document.getElementById("simon-start-btn").textContent = "게임 진행 중…";
+    updateSimonBestDisplay();
+    advanceSimonRound();
+  }
+
+  function stopSimonGame() {
+    SIMON_TOKEN++; // 진행 중이던 playSimonSequence()의 await 체인을 전부 무효화시킨다
+    SIMON_ACCEPTING_INPUT = false;
+    SIMON_TIMEOUT_IDS.forEach((id) => { clearTimeout(id); });
+    SIMON_TIMEOUT_IDS = [];
+    document.querySelectorAll(".simon-pad").forEach((p) => p.classList.remove("active"));
+  }
+
+  document.getElementById("simon-start-btn").addEventListener("click", startSimonGame);
+  updateSimonBestDisplay();
+
+  // ---------- 미니게임: 반응속도 테스트 ----------
+  // 박스를 클릭하면 "대기(빨강)" 상태로 들어가고, 무작위 시간(1~3.5초) 뒤에 "지금(초록)"으로 바뀐다.
+  // 그 순간부터 클릭까지 걸린 시간(ms)을 Date.now() 차이로 측정한다.
+  // 대기 중(빨강)에 성급하게 클릭하면 실패 처리하고 처음부터 다시 시작해야 한다.
+
+  const REACTION_BEST_KEY = "jwt_auth_practice_reaction_best";
+  let REACTION_STATE = "idle"; // idle | waiting | ready | done | fail
+  let REACTION_TIMEOUT_ID = null;
+  let REACTION_START_TIME = 0;
+
+  function updateReactionBestDisplay(newMs) {
+    let best = null;
+    try { best = localStorage.getItem(REACTION_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newMs !== undefined && (best === null || newMs < Number(best))) {
+      best = newMs;
+      try { localStorage.setItem(REACTION_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("reaction-best").textContent = best === null ? "-" : best + "ms";
+  }
+
+  function resetReactionBox() {
+    const box = document.getElementById("reaction-box");
+    box.className = "reaction-box";
+    box.textContent = "클릭해서 시작";
+  }
+
+  function startReactionWait() {
+    const box = document.getElementById("reaction-box");
+    REACTION_STATE = "waiting";
+    box.className = "reaction-box waiting";
+    box.textContent = "아직이에요… 초록색이 될 때까지 기다리세요";
+    const delay = 1000 + Math.random() * 2500;
+    REACTION_TIMEOUT_ID = setTimeout(() => {
+      REACTION_STATE = "ready";
+      REACTION_START_TIME = Date.now();
+      box.className = "reaction-box ready";
+      box.textContent = "지금 클릭!";
+    }, delay);
+  }
+
+  function handleReactionBoxClick() {
+    const box = document.getElementById("reaction-box");
+    if (REACTION_STATE === "idle" || REACTION_STATE === "done" || REACTION_STATE === "fail") {
+      startReactionWait();
+      return;
+    }
+    if (REACTION_STATE === "waiting") {
+      // 초록색이 되기 전에 눌러버림 → 실패
+      if (REACTION_TIMEOUT_ID !== null) { clearTimeout(REACTION_TIMEOUT_ID); REACTION_TIMEOUT_ID = null; }
+      REACTION_STATE = "fail";
+      box.className = "reaction-box fail";
+      box.textContent = "너무 성급했어요! 다시 클릭해서 도전해보세요.";
+      return;
+    }
+    if (REACTION_STATE === "ready") {
+      const elapsed = Date.now() - REACTION_START_TIME;
+      REACTION_STATE = "done";
+      box.className = "reaction-box";
+      box.textContent = elapsed + "ms! 다시 클릭해서 도전해보세요.";
+      document.getElementById("reaction-last").textContent = elapsed + "ms";
+      updateReactionBestDisplay(elapsed);
+      submitGameScore("reaction", elapsed);
+    }
+  }
+
+  function stopReactionTest() {
+    if (REACTION_TIMEOUT_ID !== null) { clearTimeout(REACTION_TIMEOUT_ID); REACTION_TIMEOUT_ID = null; }
+    REACTION_STATE = "idle";
+    resetReactionBox();
+  }
+
+  document.getElementById("reaction-box").addEventListener("click", handleReactionBoxClick);
+  updateReactionBestDisplay();

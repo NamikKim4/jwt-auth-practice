@@ -8,7 +8,7 @@ from fastapi.templating import Jinja2Templates
 
 from database import wait_for_db, ensure_tables
 from routers import (auth, posts, account, files, export, activity, products,
-                     admin, weather, backup, notifications)
+                     admin, weather, backup, notifications, games)
 from seed_data import seed_products
 from weather_fetcher import weather_background_loop
 from backup_sync import backup_background_loop
@@ -30,6 +30,7 @@ app.include_router(admin.router)
 app.include_router(weather.router)
 app.include_router(backup.router)
 app.include_router(notifications.router)
+app.include_router(games.router)
 
 
 def _asset_version(*path_parts: str) -> int:
