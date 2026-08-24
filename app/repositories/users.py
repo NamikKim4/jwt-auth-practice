@@ -7,13 +7,23 @@ def get_user(username: str):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT username, hashed_password, is_admin, created_at FROM users WHERE username = %s;",
+                """
+                SELECT username, hashed_password, is_admin, created_at, profile_image, bio
+                FROM users WHERE username = %s;
+                """,
                 (username,),
             )
             row = cur.fetchone()
             if row is None:
                 return None
-            return {"username": row[0], "hashed_password": row[1], "is_admin": row[2], "created_at": row[3]}
+            return {
+                "username": row[0],
+                "hashed_password": row[1],
+                "is_admin": row[2],
+                "created_at": row[3],
+                "profile_image": row[4],
+                "bio": row[5],
+            }
     finally:
         conn.close()
 
@@ -25,6 +35,20 @@ def create_user(username: str, hashed_password: str, is_admin: bool = False):
             cur.execute(
                 "INSERT INTO users (username, hashed_password, is_admin) VALUES (%s, %s, %s);",
                 (username, hashed_password, is_admin),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_profile(username: str, bio: str | None, profile_image: str | None):
+    """자기소개/프로필 사진을 통째로 덮어쓴다. None을 넘기면 그 값은 지워진다(=비워짐)."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET bio = %s, profile_image = %s WHERE username = %s;",
+                (bio, profile_image, username),
             )
         conn.commit()
     finally:

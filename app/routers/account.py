@@ -1,11 +1,28 @@
-"""계정관리: 비밀번호 변경, 회원 탈퇴."""
+"""계정관리: 비밀번호 변경, 회원 탈퇴, 프로필(사진/자기소개) 수정."""
 from fastapi import APIRouter, Depends, HTTPException
 
-from models import PasswordChangeRequest, AccountDeleteRequest
-from repositories.users import get_user, update_password, delete_user
+from models import PasswordChangeRequest, AccountDeleteRequest, ProfileUpdate
+from repositories.users import get_user, update_password, delete_user, update_profile
 from security import verify_password, hash_password, get_current_user
 
 router = APIRouter(prefix="/account", tags=["account"])
+
+# 프로필 사진은 DB에 base64 문자열로 저장하기 때문에 너무 크면 DB가 무거워진다.
+# 화면(JS)에서는 원본 파일 2MB로 막아두는데, base64로 인코딩하면 문자열이 원본보다 커지므로
+# 여기서는 그 여유분까지 감안해서 조금 더 넉넉하게(3MB) 잡아둔다.
+MAX_PROFILE_IMAGE_LEN = 3 * 1024 * 1024
+
+
+@router.put("/profile")
+def update_profile_route(payload: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    bio = (payload.bio or "").strip() or None
+    if bio and len(bio) > 150:
+        raise HTTPException(status_code=400, detail="자기소개는 150자 이내로 적어주세요.")
+    if payload.profile_image and len(payload.profile_image) > MAX_PROFILE_IMAGE_LEN:
+        raise HTTPException(status_code=400, detail="프로필 사진 용량이 너무 커요.")
+
+    update_profile(current_user["username"], bio, payload.profile_image)
+    return {"message": "프로필이 저장됐어요."}
 
 
 @router.put("/password")

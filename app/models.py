@@ -22,6 +22,11 @@ class CommentCreate(BaseModel):
     content: str
 
 
+class ProfileUpdate(BaseModel):
+    bio: str | None = None
+    profile_image: str | None = None  # data:image/...;base64,... 형태. null이면 사진 없앰.
+
+
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str

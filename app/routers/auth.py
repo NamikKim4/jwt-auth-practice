@@ -51,4 +51,6 @@ def read_me(current_user: dict = Depends(get_current_user)):
         "username": current_user["username"],
         "is_admin": current_user["is_admin"],
         "가입일": current_user["created_at"],
+        "bio": current_user.get("bio"),
+        "profile_image": current_user.get("profile_image"),
     }

@@ -36,6 +36,9 @@ def ensure_tables():
             """)
             # 예전 버전 DB에 이미 users 테이블이 있던 경우를 위한 안전장치
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE;")
+            # 프로필 사진(base64 이미지 문자열)과 자기소개. 둘 다 안 정해도 되니 NULL 허용.
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_image TEXT;")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT;")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS posts (
                     id SERIAL PRIMARY KEY,

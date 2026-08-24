@@ -1,6 +1,33 @@
   const TOKEN_KEY = "jwt_auth_practice_token";
+  const THEME_KEY = "jwt_auth_practice_theme";
   let CURRENT_USER = null;
   let EDITING_POST_ID = null;
+
+  // ---------- 라이트/다크 모드 ----------
+  // (head의 인라인 스크립트가 로딩 시점에 이미 data-theme을 먼저 적용해뒀으므로,
+  //  여기서는 버튼 아이콘을 맞추고 클릭했을 때 전환하는 역할만 한다.)
+  const themeBtn = document.getElementById("theme-btn");
+  const themeIcon = document.getElementById("theme-icon");
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    // 버튼에는 "누르면 바뀔 모드"를 보여준다 (지금 라이트면 다크로 갈 수 있다는 달 아이콘).
+    themeIcon.textContent = theme === "light" ? "🌙" : "☀️";
+    themeBtn.title = theme === "light" ? "다크 모드로 전환" : "라이트 모드로 전환";
+  }
+
+  (function initTheme() {
+    let saved = "dark";
+    try { saved = localStorage.getItem(THEME_KEY) || "dark"; } catch (e) { /* 무시 */ }
+    applyTheme(saved);
+  })();
+
+  themeBtn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    const next = isLight ? "dark" : "light";
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* 저장 안 돼도 화면 전환은 되게 둔다 */ }
+    applyTheme(next);
+  });
 
   const authScreen = document.getElementById("auth-screen");
   const appScreen = document.getElementById("app-screen");
@@ -99,19 +126,83 @@
     } catch (e) { /* 무시 */ }
   }
 
+  // 프로필 사진이 있으면 이미지로, 없으면 이름 첫 글자를 색깔 원으로 보여준다.
+  // profile-avatar, header-avatar 두 군데에서 같이 쓴다.
+  function renderAvatarInto(el, username, imageData) {
+    if (imageData) {
+      el.style.background = "none";
+      el.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = imageData;
+      img.alt = username + "님의 프로필 사진";
+      el.appendChild(img);
+    } else {
+      el.innerHTML = "";
+      el.style.background = `hsl(${hueFromName(username)}, 55%, 42%)`;
+      el.textContent = username.trim().charAt(0).toUpperCase();
+    }
+  }
+
+  let PROFILE_IMAGE_DATA = null;
+
   function refreshProfile() {
     document.getElementById("profile-username").textContent = CURRENT_USER.username;
     document.getElementById("profile-created").textContent = CURRENT_USER["가입일"];
 
-    const avatarEl = document.getElementById("profile-avatar");
-    avatarEl.style.background = `hsl(${hueFromName(CURRENT_USER.username)}, 55%, 42%)`;
-    avatarEl.textContent = CURRENT_USER.username.trim().charAt(0).toUpperCase();
+    PROFILE_IMAGE_DATA = CURRENT_USER.profile_image || null;
+    renderAvatarInto(document.getElementById("profile-avatar"), CURRENT_USER.username, PROFILE_IMAGE_DATA);
+
+    const bioInput = document.getElementById("profile-bio-input");
+    bioInput.value = CURRENT_USER.bio || "";
+    document.getElementById("profile-bio-count").textContent = bioInput.value.length + "/150";
 
     const badgeEl = document.getElementById("profile-days-badge");
     const joined = new Date(String(CURRENT_USER["가입일"]).replace(" ", "T"));
     const days = Math.floor((Date.now() - joined.getTime()) / 86400000);
     badgeEl.textContent = isNaN(days) ? "" : (days <= 0 ? "🎉 오늘 가입" : `가입한 지 ${days}일째`);
   }
+
+  document.getElementById("profile-bio-input").addEventListener("input", (e) => {
+    document.getElementById("profile-bio-count").textContent = e.target.value.length + "/150";
+  });
+
+  document.getElementById("profile-image-input").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      flash(appMsgBox, "이미지 용량이 너무 커요 (2MB 이하로 올려주세요).", "err");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      PROFILE_IMAGE_DATA = reader.result;
+      renderAvatarInto(document.getElementById("profile-avatar"), CURRENT_USER.username, PROFILE_IMAGE_DATA);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById("profile-save-btn").addEventListener("click", async () => {
+    const btn = document.getElementById("profile-save-btn");
+    const bio = document.getElementById("profile-bio-input").value.trim();
+    btn.disabled = true;
+    btn.textContent = "저장 중…";
+    try {
+      await api("/account/profile", {
+        method: "PUT",
+        json: { bio: bio || null, profile_image: PROFILE_IMAGE_DATA },
+      });
+      CURRENT_USER.bio = bio || null;
+      CURRENT_USER.profile_image = PROFILE_IMAGE_DATA;
+      renderAvatarInto(document.getElementById("header-avatar"), CURRENT_USER.username, PROFILE_IMAGE_DATA);
+      flash(appMsgBox, "프로필이 저장됐어요.", "ok");
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "저장";
+    }
+  });
 
   // ---------- 파일 크기 표시 ----------
   function formatBytes(bytes) {
@@ -569,6 +660,7 @@
     authScreen.classList.add("hidden");
     appScreen.classList.remove("hidden");
     document.getElementById("nav-username").textContent = CURRENT_USER.username;
+    renderAvatarInto(document.getElementById("header-avatar"), CURRENT_USER.username, CURRENT_USER.profile_image || null);
     document.getElementById("today-date").textContent =
       new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
     document.getElementById("nav-admin").classList.toggle("hidden", !CURRENT_USER.is_admin);
