@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16
+    container_name: jwt-auth-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 날씨 데이터 전용 DB. PostgreSQL(db)과는 완전히 별개의, 다른 종류(NoSQL)의 데이터베이스예요.
+  # 회원가입/API 키/신용카드 필요 없는 완전 무료 이미지라 돈 나갈 일이 없어요.
+  mongo:
+    image: mongo:7
+    container_name: jwt-auth-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongodata:/data/db
+
+  web:
+    build: ./app
+    container_name: jwt-auth-web
+    depends_on:
+      - db
+      - mongo
+    ports:
+      - "8001:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      ADMIN_SIGNUP_CODE: ${ADMIN_SIGNUP_CODE}
+      UPLOAD_DIR: "/app/uploads"
+      MONGO_URI: "mongodb://mongo:27017"
+      WEATHER_CITY_NAME: ${WEATHER_CITY_NAME}
+      WEATHER_LAT: ${WEATHER_LAT}
+      WEATHER_LON: ${WEATHER_LON}
+      WEATHER_FETCH_INTERVAL_SECONDS: ${WEATHER_FETCH_INTERVAL_SECONDS}
+      BACKUP_SYNC_INTERVAL_SECONDS: ${BACKUP_SYNC_INTERVAL_SECONDS}
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  uploads_data:
+  pgdata:
+  mongodata:

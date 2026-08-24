@@ -1,0 +1,17 @@
+# 진짜 비밀값이 들어있는 파일 — 절대 git에 올리면 안 됨
+.env
+
+# 파이썬
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS / 에디터
+.DS_Store
+.vscode/
+*.swp
+
+# 정리용 임시 폴더
+_to_delete/
