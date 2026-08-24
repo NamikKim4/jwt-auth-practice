@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from models import PostCreate, PostUpdate, CommentCreate
 from repositories import posts as posts_repo
 from repositories import comments as comments_repo
+from repositories import notifications as notifications_repo
 from security import get_current_user
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
@@ -70,9 +71,28 @@ def list_comments(post_id: int):
 
 @router.post("/{post_id}/comments")
 def create_comment(post_id: int, payload: CommentCreate, current_user: dict = Depends(get_current_user)):
-    if posts_repo.get_post_author(post_id) is None:
+    # 알림에 글 제목을 같이 저장할 거라서 작성자만이 아니라 글 정보를 통째로 가져온다.
+    # 댓글을 다는 것뿐인데 조회수가 오르면 이상하니까 increment_view=False.
+    post = posts_repo.get_post(post_id, increment_view=False)
+    if post is None:
         raise HTTPException(status_code=404, detail="존재하지 않는 게시글이에요.")
+
     new_id = comments_repo.create_comment(post_id, current_user["username"], payload.content)
+
+    # 글쓴이에게 알림을 남긴다. 내 글에 내가 댓글을 단 경우는 알릴 필요가 없으니 건너뛴다.
+    if post["author"] != current_user["username"]:
+        try:
+            notifications_repo.create_notification(
+                recipient=post["author"],
+                actor=current_user["username"],
+                post_id=post_id,
+                post_title=post["title"],
+                preview=payload.content,
+            )
+        except Exception as e:
+            # 알림은 부가 기능이라, 여기서 실패하더라도 댓글 등록 자체는 성공으로 둔다.
+            print(f"[알림] 생성 실패 (댓글은 정상 등록됨): {e}")
+
     return {"id": new_id, "message": "댓글이 등록됐어요."}
 
 

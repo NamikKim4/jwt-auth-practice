@@ -22,8 +22,9 @@ def list_posts(q: str | None = None, sort: str = "latest"):
             params = ()
             where = ""
             if q:
-                where = "WHERE p.title ILIKE %s"
-                params = (f"%{q}%",)
+                # 제목뿐 아니라 본문에서도 찾는다. ILIKE는 대소문자를 구분하지 않는 검색.
+                where = "WHERE (p.title ILIKE %s OR p.content ILIKE %s)"
+                params = (f"%{q}%", f"%{q}%")
             cur.execute(sql.format(where=where), params)
             rows = cur.fetchall()
             return [
@@ -78,7 +79,9 @@ def list_posts_page(q: str | None = None, sort: str = "latest", page: int = 1, p
             where = ""
             params = []
             if q:
-                where = "WHERE p.title ILIKE %s"
+                # 제목뿐 아니라 본문에서도 찾는다. ILIKE는 대소문자를 구분하지 않는 검색.
+                where = "WHERE (p.title ILIKE %s OR p.content ILIKE %s)"
+                params.append(f"%{q}%")
                 params.append(f"%{q}%")
 
             count_sql = f"SELECT COUNT(*) FROM posts p {where};"

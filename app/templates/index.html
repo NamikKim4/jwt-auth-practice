@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JWT 포털</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>">
-<link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/style.css?v={{ css_version }}">
 </head>
 <body>
 
@@ -82,6 +82,25 @@
     <div class="logo"><span aria-hidden="true">🌐</span> JWT 포털</div>
     <div class="right-area">
       <span id="today-date"></span>
+
+      <div class="notif-wrap">
+        <button type="button" class="notif-btn" id="notif-btn"
+                aria-label="알림" aria-haspopup="dialog" aria-expanded="false">
+          <span aria-hidden="true">🔔</span>
+          <span class="notif-badge hidden" id="notif-badge">0</span>
+        </button>
+        <div class="notif-panel hidden" id="notif-panel" role="dialog" aria-label="알림 목록">
+          <div class="notif-panel-head">
+            <div class="notif-panel-title">
+              <strong>알림</strong>
+              <span class="notif-panel-sub" id="notif-panel-sub">새 알림 없음</span>
+            </div>
+            <button type="button" class="notif-readall" id="notif-read-all">모두 읽음</button>
+          </div>
+          <div class="notif-list" id="notif-list"></div>
+        </div>
+      </div>
+
       <span><strong id="nav-username">-</strong>님</span>
       <button class="logout-btn" id="logout-btn">로그아웃</button>
     </div>
@@ -162,7 +181,7 @@
               <h2>전체 글 <span id="post-count" style="color:var(--sub); font-weight:400;"></span></h2>
             </div>
             <div class="board-toolbar">
-              <input type="text" id="search-input" placeholder="제목으로 검색" aria-label="게시글 검색">
+              <input type="text" id="search-input" placeholder="제목·내용으로 검색" aria-label="게시글 검색">
               <select id="sort-select" aria-label="정렬 기준">
                 <option value="latest">최신순</option>
                 <option value="views">조회수순</option>
@@ -600,7 +619,7 @@
   </div>
 </div>
 
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v={{ js_version }}"></script>
 
 </body>
 </html>

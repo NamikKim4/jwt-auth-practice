@@ -59,6 +59,27 @@ def ensure_tables():
                     created_at TIMESTAMP DEFAULT NOW()
                 );
             """)
+            # 알림: "내 글에 누가 댓글을 달았다" 같은 소식을 받는 사람(recipient)별로 쌓아두는 테이블.
+            # 글이 지워지면 그 글에 딸린 알림도 같이 지워지게 ON DELETE CASCADE를 걸어뒀다.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id SERIAL PRIMARY KEY,
+                    recipient TEXT NOT NULL,
+                    actor TEXT NOT NULL,
+                    kind TEXT NOT NULL DEFAULT 'comment',
+                    post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+                    post_title TEXT NOT NULL,
+                    preview TEXT NOT NULL,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+            # "내 안 읽은 알림"을 자주 세게 되므로, 그 조건에 맞춘 인덱스를 만들어둔다.
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_notifications_recipient
+                ON notifications (recipient, is_read, id DESC);
+            """)
+
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS files (
                     id SERIAL PRIMARY KEY,

@@ -137,6 +137,104 @@
   }
   .logout-btn:hover { opacity: 0.88; }
 
+  /* ===== 알림 (종 아이콘 + 드롭다운) ===== */
+  .notif-wrap { position: relative; display: flex; }
+  .notif-btn {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; background: none; border: 1px solid transparent; cursor: pointer;
+    font-size: 18px; line-height: 1; border-radius: 10px; color: var(--sub);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .notif-btn:hover { background: var(--panel); border-color: var(--border); color: var(--text); }
+  .notif-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+  .notif-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .notif-badge {
+    position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px;
+    padding: 0 4px; border-radius: 9px;
+    background: linear-gradient(135deg, #ff7676, var(--err));
+    color: #fff; font-size: 10.5px; font-weight: 800; line-height: 18px; text-align: center;
+    border: 2px solid var(--card); box-shadow: 0 0 0 1px rgba(255,107,107,0.35);
+  }
+
+  @keyframes notifPopIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* 패널이 종 아이콘에서 나온 말풍선처럼 보이도록 위쪽에 작은 삼각형(caret)을 붙인다 */
+  .notif-panel {
+    position: absolute; top: calc(100% + 14px); right: 0; z-index: 50;
+    width: 380px; max-height: 460px; display: flex; flex-direction: column;
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    box-shadow: 0 20px 48px rgba(0,0,0,0.55); overflow: hidden;
+    animation: notifPopIn 0.16s ease-out;
+  }
+  .notif-panel::before {
+    content: ""; position: absolute; top: -7px; right: 12px;
+    width: 14px; height: 14px; background: var(--card);
+    border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+    transform: rotate(45deg); border-radius: 3px 0 0 0;
+  }
+  .notif-panel-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 18px; border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, rgba(77,139,240,0.07), transparent);
+    flex-shrink: 0;
+  }
+  .notif-panel-title { display: flex; flex-direction: column; gap: 2px; }
+  .notif-panel-head strong { font-size: 15px; color: var(--text); }
+  .notif-panel-sub { font-size: 11.5px; color: var(--sub); }
+  .notif-readall {
+    background: var(--panel); border: 1px solid var(--border); color: var(--sub); cursor: pointer;
+    font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+    white-space: nowrap; transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .notif-readall:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .notif-readall:disabled { opacity: 0.4; cursor: default; }
+
+  .notif-list { overflow-y: auto; }
+  .notif-item {
+    position: relative; display: flex; align-items: flex-start; gap: 12px; width: 100%;
+    text-align: left; background: none; border: none; border-bottom: 1px solid var(--border);
+    padding: 14px 18px; cursor: pointer; color: var(--text); font-family: inherit;
+    transition: background 0.12s;
+  }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: var(--panel); }
+  .notif-item.unread { background: rgba(77,139,240,0.09); }
+  .notif-item.unread:hover { background: rgba(77,139,240,0.16); }
+  .notif-item.unread::before {
+    content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+    border-radius: 0 3px 3px 0; background: var(--accent);
+  }
+  .notif-item .notif-avatar { margin-top: 1px; }
+  .notif-item .notif-body { min-width: 0; flex: 1; }
+  .notif-item .notif-line1 {
+    font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.45; margin-bottom: 5px;
+  }
+  .notif-item .notif-line1 strong { font-weight: 700; }
+  .notif-item .notif-preview {
+    font-size: 12.5px; color: var(--sub); margin-bottom: 8px; line-height: 1.4;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .notif-item .notif-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .notif-item .notif-post-chip {
+    display: inline-flex; align-items: center; gap: 4px; max-width: 62%;
+    background: rgba(255,255,255,0.05); border-radius: 999px; padding: 3px 9px;
+    font-size: 10.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .notif-item .notif-time { font-size: 11px; color: var(--sub); flex-shrink: 0; }
+  .notif-item.unread .notif-time { color: var(--accent); font-weight: 600; }
+
+  .notif-empty {
+    padding: 46px 24px; text-align: center; font-size: 13px; color: var(--sub); line-height: 1.6;
+  }
+  .notif-empty .icon {
+    width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%;
+    background: var(--accent-soft); display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+  }
+
   .body-row { flex: 1; display: flex; min-height: 0; }
 
   .sidebar {

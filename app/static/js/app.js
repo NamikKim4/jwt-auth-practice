@@ -572,7 +572,171 @@
     document.getElementById("today-date").textContent =
       new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "short" });
     document.getElementById("nav-admin").classList.toggle("hidden", !CURRENT_USER.is_admin);
+    startNotifPolling();
     gotoPage("home");
+  }
+
+  // ---------- 알림 (헤더 종 아이콘) ----------
+
+  const notifBtn = document.getElementById("notif-btn");
+  const notifPanel = document.getElementById("notif-panel");
+  const notifBadge = document.getElementById("notif-badge");
+  const notifPanelSub = document.getElementById("notif-panel-sub");
+  const notifList = document.getElementById("notif-list");
+  const notifReadAllBtn = document.getElementById("notif-read-all");
+  let notifPollTimer = null;
+
+  async function refreshUnreadCount() {
+    if (!CURRENT_USER) return;
+    try {
+      const data = await api("/api/notifications/unread-count");
+      notifBadge.textContent = data.count > 99 ? "99+" : data.count;
+      notifBadge.classList.toggle("hidden", data.count === 0);
+      notifReadAllBtn.disabled = data.count === 0;
+      notifPanelSub.textContent = data.count === 0 ? "새 알림 없음" : `새 알림 ${data.count}개`;
+    } catch (e) {
+      // 배지 숫자는 부가 정보라, 실패해도 화면 전체에 에러를 띄우지는 않는다.
+    }
+  }
+
+  async function loadNotifications() {
+    notifList.innerHTML = "";
+    let items;
+    try {
+      items = await api("/api/notifications?limit=20");
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+      return;
+    }
+
+    if (items.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "notif-empty";
+      empty.innerHTML = `<div class="icon">🔔</div>아직 받은 알림이 없어요.<br>내 글에 댓글이 달리면 여기에 표시돼요.`;
+      notifList.appendChild(empty);
+      return;
+    }
+
+    items.forEach((n) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "notif-item" + (n.is_read ? "" : " unread");
+
+      // 댓글 단 사람을 색깔 원형 아바타로 보여준다 (회원 목록 등 다른 화면과 같은 방식).
+      const avatarWrap = document.createElement("div");
+      avatarWrap.className = "notif-avatar";
+      avatarWrap.appendChild(makeAvatar(n.actor, "avatar-sm"));
+      btn.appendChild(avatarWrap);
+
+      const body = document.createElement("div");
+      body.className = "notif-body";
+
+      const line1 = document.createElement("div");
+      line1.className = "notif-line1";
+      // textContent로 사람 이름을 따로 넣기 때문에, 닉네임에 특수문자가 있어도 그대로 글자로만 보인다.
+      const actorStrong = document.createElement("strong");
+      actorStrong.textContent = n.actor;
+      line1.appendChild(actorStrong);
+      line1.appendChild(document.createTextNode("님이 댓글을 남겼어요"));
+      body.appendChild(line1);
+
+      const preview = document.createElement("div");
+      preview.className = "notif-preview";
+      preview.textContent = `"${n.preview}"`;
+      body.appendChild(preview);
+
+      const meta = document.createElement("div");
+      meta.className = "notif-meta";
+
+      const postChip = document.createElement("span");
+      postChip.className = "notif-post-chip";
+      postChip.textContent = `📋 ${n.post_title}`;
+      meta.appendChild(postChip);
+
+      const time = document.createElement("span");
+      time.className = "notif-time";
+      time.textContent = timeAgo(n.created_at);
+      meta.appendChild(time);
+
+      body.appendChild(meta);
+      btn.appendChild(body);
+      btn.addEventListener("click", () => openNotification(n));
+      notifList.appendChild(btn);
+    });
+  }
+
+  async function openNotification(n) {
+    closeNotifPanel();
+    if (!n.is_read) {
+      try {
+        await api("/api/notifications/" + n.id + "/read", { method: "POST" });
+      } catch (e) {
+        // 읽음 처리에 실패하더라도 글로 이동은 시켜준다.
+      }
+      await refreshUnreadCount();
+    }
+    if (n.post_id !== null && n.post_id !== undefined) {
+      gotoPage("board");
+      showDetailView(n.post_id);
+    }
+  }
+
+  function openNotifPanel() {
+    notifPanel.classList.remove("hidden");
+    notifBtn.classList.add("active");
+    notifBtn.setAttribute("aria-expanded", "true");
+    loadNotifications();
+  }
+
+  function closeNotifPanel() {
+    notifPanel.classList.add("hidden");
+    notifBtn.classList.remove("active");
+    notifBtn.setAttribute("aria-expanded", "false");
+  }
+
+  notifBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (notifPanel.classList.contains("hidden")) openNotifPanel();
+    else closeNotifPanel();
+  });
+
+  // 패널 안을 클릭한 건 "바깥 클릭"으로 치지 않는다.
+  notifPanel.addEventListener("click", (e) => e.stopPropagation());
+
+  document.addEventListener("click", () => {
+    if (!notifPanel.classList.contains("hidden")) closeNotifPanel();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !notifPanel.classList.contains("hidden")) {
+      closeNotifPanel();
+      notifBtn.focus();
+    }
+  });
+
+  document.getElementById("notif-read-all").addEventListener("click", async () => {
+    try {
+      const result = await api("/api/notifications/read-all", { method: "POST" });
+      flash(appMsgBox, result.message, "ok");
+      await refreshUnreadCount();
+      await loadNotifications();
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    }
+  });
+
+  function startNotifPolling() {
+    stopNotifPolling();
+    refreshUnreadCount();
+    // 30초마다 "안 읽은 개수"만 가볍게 다시 물어본다. 목록 전체는 종을 눌렀을 때만 불러온다.
+    notifPollTimer = setInterval(refreshUnreadCount, 30000);
+  }
+
+  function stopNotifPolling() {
+    if (notifPollTimer !== null) {
+      clearInterval(notifPollTimer);
+      notifPollTimer = null;
+    }
   }
 
   // ---------- 게시판 하위 화면 ----------
