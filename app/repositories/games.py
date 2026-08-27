@@ -9,6 +9,8 @@ LOWER_IS_BETTER = {
     "mole": False,
     "simon": False,
     "reaction": True,
+    "memory": True,
+    "minesweeper": True,
 }
 
 

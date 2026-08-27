@@ -92,6 +92,8 @@
     stopMoleGame();
     stopSimonGame();
     stopReactionTest();
+    stopMemoryGame();
+    stopMinesweeperGame();
 
     PAGES.forEach((p) => {
       document.getElementById("page-" + p).classList.toggle("hidden", p !== page);
@@ -1766,6 +1768,8 @@
     mole: (v) => v + "점",
     simon: (v) => v + "라운드",
     reaction: (v) => v + "ms",
+    memory: (v) => v + "번",
+    minesweeper: (v) => v + "초",
   };
 
   // elId를 따로 받는 이유: 같은 게임의 랭킹을 "게임 화면 안(leaderboard-xxx)"과
@@ -1822,7 +1826,7 @@
     } catch (e) { /* 랭킹 로드 실패는 게임 진행에 지장 없이 조용히 넘어간다 */ }
   }
 
-  const ALL_GAMES = ["baseball", "mole", "simon", "reaction"];
+  const ALL_GAMES = ["baseball", "mole", "simon", "reaction", "memory", "minesweeper"];
 
   // 미니게임 목록 화면 맨 위 "전체 랭킹" — 게임 안에 들어가지 않아도 4개 게임 순위를 한눈에 볼 수 있게 한다.
   async function loadOverallLeaderboards() {
@@ -1951,6 +1955,8 @@
     document.getElementById("minigame-view-mole").classList.add("hidden");
     document.getElementById("minigame-view-simon").classList.add("hidden");
     document.getElementById("minigame-view-reaction").classList.add("hidden");
+    document.getElementById("minigame-view-memory").classList.add("hidden");
+    document.getElementById("minigame-view-minesweeper").classList.add("hidden");
   }
 
   function showMinigameMenu() {
@@ -1958,6 +1964,8 @@
     stopMoleGame();
     stopSimonGame();
     stopReactionTest();
+    stopMemoryGame();
+    stopMinesweeperGame();
     hideAllMinigameViews();
     document.getElementById("minigame-view-menu").classList.remove("hidden");
     loadOverallLeaderboards();
@@ -1987,14 +1995,30 @@
     loadLeaderboard("reaction");
   }
 
+  function showMemoryView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-memory").classList.remove("hidden");
+    loadLeaderboard("memory");
+  }
+
+  function showMinesweeperView() {
+    hideAllMinigameViews();
+    document.getElementById("minigame-view-minesweeper").classList.remove("hidden");
+    loadLeaderboard("minesweeper");
+  }
+
   document.getElementById("tile-baseball").addEventListener("click", showBaseballView);
   document.getElementById("tile-mole").addEventListener("click", showMoleView);
   document.getElementById("tile-simon").addEventListener("click", showSimonView);
   document.getElementById("tile-reaction").addEventListener("click", showReactionView);
+  document.getElementById("tile-memory").addEventListener("click", showMemoryView);
+  document.getElementById("tile-minesweeper").addEventListener("click", showMinesweeperView);
   document.getElementById("btn-back-from-baseball").addEventListener("click", showMinigameMenu);
   document.getElementById("btn-back-from-mole").addEventListener("click", showMinigameMenu);
   document.getElementById("btn-back-from-simon").addEventListener("click", showMinigameMenu);
   document.getElementById("btn-back-from-reaction").addEventListener("click", showMinigameMenu);
+  document.getElementById("btn-back-from-memory").addEventListener("click", showMinigameMenu);
+  document.getElementById("btn-back-from-minesweeper").addEventListener("click", showMinigameMenu);
 
   // ---------- 미니게임: 두더지잡기 ----------
   // setInterval(카운트다운)과 setTimeout(두더지 등장/숨김)을 같이 쓰는 타이머 기반 게임.
@@ -2293,3 +2317,304 @@
 
   document.getElementById("reaction-box").addEventListener("click", handleReactionBoxClick);
   updateReactionBestDisplay();
+
+  // ---------- 미니게임: 카드 짝맞추기 ----------
+  // 16장(8쌍)을 4x4로 깔아두고 두 장씩 뒤집는다. 같은 그림이면 그대로 맞춰진 채로 두고,
+  // 다르면 잠깐 보여줬다가 다시 뒤집는다. "시도 횟수"(두 장을 비교한 횟수)가 적을수록 좋은 기록.
+
+  const MEMORY_BEST_KEY = "jwt_auth_practice_memory_best";
+  const MEMORY_SYMBOLS = ["🍎", "🍌", "🍇", "🍉", "🍒", "🍋", "🍑", "🍓"];
+  let MEMORY_CARDS = [];
+  let MEMORY_FLIPPED = []; // 현재 뒤집혀서 비교 대기 중인 카드 인덱스들 (최대 2개)
+  let MEMORY_TRIES = 0;
+  let MEMORY_MATCHED_COUNT = 0;
+  let MEMORY_LOCKED = false; // 두 장을 비교하는 짧은 시간 동안 추가 클릭을 막는다
+  let MEMORY_TIMEOUT_ID = null;
+
+  function updateMemoryBestDisplay(newScore) {
+    let best = null;
+    try { best = localStorage.getItem(MEMORY_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newScore !== undefined && (best === null || newScore < Number(best))) {
+      best = newScore;
+      try { localStorage.setItem(MEMORY_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("memory-best").textContent = best === null ? "-" : best + "번";
+  }
+
+  function renderMemoryGrid() {
+    const grid = document.getElementById("memory-grid");
+    grid.innerHTML = "";
+    MEMORY_CARDS.forEach((card, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "memory-card";
+      btn.dataset.index = i;
+      btn.setAttribute("aria-label", "카드 뒤집기");
+      btn.addEventListener("click", () => handleMemoryCardClick(i));
+      grid.appendChild(btn);
+    });
+  }
+
+  function newMemoryGame() {
+    stopMemoryGame();
+    const symbols = [...MEMORY_SYMBOLS, ...MEMORY_SYMBOLS];
+    for (let i = symbols.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [symbols[i], symbols[j]] = [symbols[j], symbols[i]];
+    }
+    MEMORY_CARDS = symbols.map((s) => ({ symbol: s, matched: false }));
+    MEMORY_FLIPPED = [];
+    MEMORY_TRIES = 0;
+    MEMORY_MATCHED_COUNT = 0;
+    MEMORY_LOCKED = false;
+    document.getElementById("memory-tries-count").textContent = "0";
+    document.getElementById("memory-win-banner").classList.add("hidden");
+    updateMemoryBestDisplay();
+    renderMemoryGrid();
+  }
+
+  function handleMemoryCardClick(index) {
+    if (MEMORY_LOCKED) return;
+    const card = MEMORY_CARDS[index];
+    if (!card || card.matched || MEMORY_FLIPPED.includes(index)) return;
+
+    const cardEl = document.querySelector('.memory-card[data-index="' + index + '"]');
+    cardEl.classList.add("flipped");
+    cardEl.textContent = card.symbol;
+    MEMORY_FLIPPED.push(index);
+
+    if (MEMORY_FLIPPED.length < 2) return;
+
+    MEMORY_TRIES++;
+    document.getElementById("memory-tries-count").textContent = MEMORY_TRIES;
+    MEMORY_LOCKED = true;
+
+    const [i1, i2] = MEMORY_FLIPPED;
+    const isMatch = MEMORY_CARDS[i1].symbol === MEMORY_CARDS[i2].symbol;
+
+    MEMORY_TIMEOUT_ID = setTimeout(() => {
+      const el1 = document.querySelector('.memory-card[data-index="' + i1 + '"]');
+      const el2 = document.querySelector('.memory-card[data-index="' + i2 + '"]');
+      if (isMatch) {
+        MEMORY_CARDS[i1].matched = true;
+        MEMORY_CARDS[i2].matched = true;
+        if (el1) { el1.classList.add("matched"); el1.disabled = true; }
+        if (el2) { el2.classList.add("matched"); el2.disabled = true; }
+        MEMORY_MATCHED_COUNT += 2;
+        if (MEMORY_MATCHED_COUNT === MEMORY_CARDS.length) endMemoryGame();
+      } else {
+        if (el1) { el1.classList.remove("flipped"); el1.textContent = ""; }
+        if (el2) { el2.classList.remove("flipped"); el2.textContent = ""; }
+      }
+      MEMORY_FLIPPED = [];
+      MEMORY_LOCKED = false;
+      MEMORY_TIMEOUT_ID = null;
+    }, 700);
+  }
+
+  function endMemoryGame() {
+    const banner = document.getElementById("memory-win-banner");
+    banner.textContent = `🎉 ${MEMORY_TRIES}번 만에 전부 맞혔어요!`;
+    banner.classList.remove("hidden");
+    updateMemoryBestDisplay(MEMORY_TRIES);
+    submitGameScore("memory", MEMORY_TRIES);
+  }
+
+  function stopMemoryGame() {
+    // 진행 중이던 "두 장 비교" 타이머를 지워서, 화면을 떠난 뒤에 안 보이는 카드가
+    // 뒤늦게 맞춰지거나 뒤집히는 일이 없게 한다.
+    if (MEMORY_TIMEOUT_ID !== null) { clearTimeout(MEMORY_TIMEOUT_ID); MEMORY_TIMEOUT_ID = null; }
+    MEMORY_LOCKED = true;
+  }
+
+  document.getElementById("memory-start-btn").addEventListener("click", newMemoryGame);
+  newMemoryGame();
+
+  // ---------- 미니게임: 지뢰찾기 ----------
+  // 9x9 칸에 지뢰 10개를 숨겨두는 고전 지뢰찾기. 첫 클릭이 지뢰가 아니게 하려고,
+  // 지뢰는 미리 깔아두지 않고 "처음 클릭한 칸을 확인한 뒤" 그 칸을 피해서 배치한다.
+  // 좌클릭은 칸 열기, 우클릭은 깃발 표시(지뢰로 의심되는 칸에 표시만 해두는 것).
+
+  const MS_BEST_KEY = "jwt_auth_practice_minesweeper_best";
+  const MS_ROWS = 9;
+  const MS_COLS = 9;
+  const MS_MINES = 10;
+  let MS_BOARD = [];
+  let MS_STARTED = false; // 지뢰를 아직 안 깔았으면 false (첫 클릭 전)
+  let MS_PLAYING = false;
+  let MS_REVEALED_COUNT = 0;
+  let MS_TIME = 0;
+  let MS_TIMER_ID = null;
+
+  function updateMinesweeperBestDisplay(newTime) {
+    let best = null;
+    try { best = localStorage.getItem(MS_BEST_KEY); } catch (e) { /* 무시 */ }
+    if (newTime !== undefined && (best === null || newTime < Number(best))) {
+      best = newTime;
+      try { localStorage.setItem(MS_BEST_KEY, String(best)); } catch (e) { /* 저장 안 돼도 게임엔 지장 없음 */ }
+    }
+    document.getElementById("minesweeper-best").textContent = best === null ? "-" : best + "초";
+  }
+
+  function msNeighbors(i) {
+    const r = Math.floor(i / MS_COLS);
+    const c = i % MS_COLS;
+    const result = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < MS_ROWS && nc >= 0 && nc < MS_COLS) result.push(nr * MS_COLS + nc);
+      }
+    }
+    return result;
+  }
+
+  function placeMinesAvoiding(excludeIndex) {
+    const candidates = [];
+    for (let i = 0; i < MS_BOARD.length; i++) { if (i !== excludeIndex) candidates.push(i); }
+    for (let i = candidates.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+    }
+    candidates.slice(0, MS_MINES).forEach((i) => { MS_BOARD[i].mine = true; });
+    MS_BOARD.forEach((cell, i) => {
+      if (cell.mine) return;
+      cell.adjacent = msNeighbors(i).filter((n) => MS_BOARD[n].mine).length;
+    });
+  }
+
+  function renderMsCellUI(i) {
+    const cell = MS_BOARD[i];
+    const el = document.querySelector('.minesweeper-cell[data-index="' + i + '"]');
+    if (!el) return;
+    el.classList.add("revealed");
+    el.disabled = true;
+    if (cell.adjacent > 0) {
+      el.textContent = String(cell.adjacent);
+      el.classList.add("n" + cell.adjacent);
+    } else {
+      el.textContent = "";
+    }
+  }
+
+  function revealCell(startIndex) {
+    // 재귀 대신 스택으로 처리한다 (81칸이라 재귀로도 문제는 없지만, 반복문이 더 안전하다).
+    const stack = [startIndex];
+    while (stack.length) {
+      const idx = stack.pop();
+      const cell = MS_BOARD[idx];
+      if (cell.revealed || cell.flagged || cell.mine) continue;
+      cell.revealed = true;
+      MS_REVEALED_COUNT++;
+      renderMsCellUI(idx);
+      if (cell.adjacent === 0) {
+        msNeighbors(idx).forEach((n) => stack.push(n));
+      }
+    }
+  }
+
+  function checkMsWin() {
+    if (MS_REVEALED_COUNT === MS_ROWS * MS_COLS - MS_MINES) winMinesweeperGame();
+  }
+
+  function startMsTimer() {
+    MS_TIMER_ID = setInterval(() => {
+      MS_TIME++;
+      document.getElementById("minesweeper-timer").textContent = String(MS_TIME);
+    }, 1000);
+  }
+
+  function stopMsTimer() {
+    if (MS_TIMER_ID !== null) { clearInterval(MS_TIMER_ID); MS_TIMER_ID = null; }
+  }
+
+  function winMinesweeperGame() {
+    MS_PLAYING = false;
+    stopMsTimer();
+    const banner = document.getElementById("minesweeper-result-banner");
+    banner.textContent = `🎉 ${MS_TIME}초 만에 클리어했어요!`;
+    banner.classList.remove("hidden");
+    updateMinesweeperBestDisplay(MS_TIME);
+    submitGameScore("minesweeper", MS_TIME);
+  }
+
+  function loseMinesweeperGame(hitIndex) {
+    MS_PLAYING = false;
+    stopMsTimer();
+    MS_BOARD.forEach((cell, i) => {
+      if (!cell.mine) return;
+      const el = document.querySelector('.minesweeper-cell[data-index="' + i + '"]');
+      if (!el) return;
+      el.classList.add("revealed");
+      el.disabled = true;
+      el.textContent = "💣";
+      if (i === hitIndex) el.classList.add("mine-hit");
+    });
+    const banner = document.getElementById("minesweeper-result-banner");
+    banner.textContent = `💥 지뢰를 밟았어요! (${MS_TIME}초)`;
+    banner.classList.remove("hidden");
+  }
+
+  function handleMsCellClick(i) {
+    if (!MS_PLAYING) return;
+    const cell = MS_BOARD[i];
+    if (cell.flagged || cell.revealed) return;
+    if (!MS_STARTED) {
+      placeMinesAvoiding(i);
+      MS_STARTED = true;
+      startMsTimer();
+    }
+    if (cell.mine) { loseMinesweeperGame(i); return; }
+    revealCell(i);
+    checkMsWin();
+  }
+
+  function handleMsCellRightClick(i, e) {
+    e.preventDefault();
+    if (!MS_PLAYING) return;
+    const cell = MS_BOARD[i];
+    if (cell.revealed) return;
+    const el = document.querySelector('.minesweeper-cell[data-index="' + i + '"]');
+    cell.flagged = !cell.flagged;
+    if (el) el.textContent = cell.flagged ? "🚩" : "";
+    const flaggedCount = MS_BOARD.filter((c) => c.flagged).length;
+    document.getElementById("minesweeper-mines-left").textContent = String(MS_MINES - flaggedCount);
+  }
+
+  function renderMinesweeperGrid() {
+    const grid = document.getElementById("minesweeper-grid");
+    grid.innerHTML = "";
+    MS_BOARD.forEach((cell, i) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "minesweeper-cell";
+      btn.dataset.index = i;
+      btn.setAttribute("aria-label", "지뢰찾기 칸");
+      btn.addEventListener("click", () => handleMsCellClick(i));
+      btn.addEventListener("contextmenu", (e) => handleMsCellRightClick(i, e));
+      grid.appendChild(btn);
+    });
+  }
+
+  function newMinesweeperGame() {
+    stopMinesweeperGame();
+    MS_BOARD = Array.from({ length: MS_ROWS * MS_COLS }, () => ({ mine: false, revealed: false, flagged: false, adjacent: 0 }));
+    MS_STARTED = false;
+    MS_PLAYING = true;
+    MS_REVEALED_COUNT = 0;
+    MS_TIME = 0;
+    document.getElementById("minesweeper-mines-left").textContent = String(MS_MINES);
+    document.getElementById("minesweeper-timer").textContent = "0";
+    document.getElementById("minesweeper-result-banner").classList.add("hidden");
+    updateMinesweeperBestDisplay();
+    renderMinesweeperGrid();
+  }
+
+  function stopMinesweeperGame() {
+    stopMsTimer();
+    MS_PLAYING = false;
+  }
+
+  document.getElementById("minesweeper-start-btn").addEventListener("click", newMinesweeperGame);
+  newMinesweeperGame();

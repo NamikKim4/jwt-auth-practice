@@ -550,8 +550,46 @@
     background: var(--sub); cursor: pointer; user-select: none; transition: background 0.12s ease-out;
   }
   .reaction-box.waiting { background: #e5484d; }
-  .reaction-box.ready { background: #22c55e; }
-  .reaction-box.fail { background: var(--warn); }
+  /* ===== 미니게임: 카드 짝맞추기 ===== */
+  .memory-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    max-width: 340px; margin: 0 auto 18px;
+  }
+  .memory-card {
+    aspect-ratio: 1 / 1; border-radius: 12px; border: 2px solid var(--border);
+    background: var(--panel); cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 24px;
+    transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+  }
+  .memory-card:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--accent); }
+  .memory-card.flipped { background: var(--card); border-color: var(--accent); }
+  .memory-card.matched { background: var(--accent-soft); border-color: var(--ok); opacity: 0.6; cursor: default; }
+  .memory-card:disabled { cursor: default; }
+
+  /* ===== 미니게임: 지뢰찾기 ===== */
+  .minesweeper-grid {
+    display: grid; grid-template-columns: repeat(9, 1fr); gap: 2px;
+    max-width: 342px; margin: 0 auto 18px; background: var(--border); padding: 2px; border-radius: 8px;
+    /* 우클릭(깃발 표시)했을 때 브라우저 기본 메뉴가 뜨면 게임을 못 하니, contextmenu는 JS에서 막아둔다 */
+  }
+  .minesweeper-cell {
+    aspect-ratio: 1 / 1; border: none; border-radius: 3px; background: var(--panel);
+    cursor: pointer; padding: 0; font-size: 13px; font-weight: 800; line-height: 1;
+    display: flex; align-items: center; justify-content: center; user-select: none;
+    transition: background 0.08s ease;
+  }
+  .minesweeper-cell:hover:not(.revealed) { background: var(--card); }
+  .minesweeper-cell.revealed { background: var(--card); cursor: default; }
+  .minesweeper-cell.mine-hit { background: var(--err); }
+  .minesweeper-cell:disabled { cursor: default; }
+  .minesweeper-cell.n1 { color: #3b82f6; }
+  .minesweeper-cell.n2 { color: #22c55e; }
+  .minesweeper-cell.n3 { color: #e5484d; }
+  .minesweeper-cell.n4 { color: #8b5cf6; }
+  .minesweeper-cell.n5 { color: #b45309; }
+  .minesweeper-cell.n6 { color: #06b6d4; }
+  .minesweeper-cell.n7 { color: var(--text); }
+  .minesweeper-cell.n8 { color: var(--sub); }
 
   /* ===== 미니게임: 계정별 랭킹 (4개 게임 공통 — 게임 화면 안 랭킹 + 전체 랭킹 패널 둘 다 여기 스타일을 쓴다) =====
      금/은/동 원형 배지 + 아바타 + 줄 사이 구분선으로, 순위표처럼 한눈에 읽히게 만들었다. */

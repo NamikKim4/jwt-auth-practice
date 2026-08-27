@@ -513,6 +513,20 @@
                   </div>
                   <ol class="leaderboard-list" id="menu-leaderboard-reaction"></ol>
                 </div>
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">🍀 카드 짝맞추기</span>
+                    <span class="leaderboard-subtitle">적을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-memory"></ol>
+                </div>
+                <div class="overall-leaderboard-card">
+                  <div class="overall-leaderboard-card-head">
+                    <span class="game-name">💣 지뢰찾기</span>
+                    <span class="leaderboard-subtitle">짧을수록 ↑</span>
+                  </div>
+                  <ol class="leaderboard-list" id="menu-leaderboard-minesweeper"></ol>
+                </div>
               </div>
             </div>
 
@@ -537,6 +551,16 @@
                 <div class="minigame-tile-icon">⚡</div>
                 <div class="minigame-tile-name">반응속도 테스트</div>
                 <div class="minigame-tile-desc">화면이 바뀌는 순간 최대한 빠르게 클릭해보세요</div>
+              </button>
+              <button type="button" class="minigame-tile" id="tile-memory">
+                <div class="minigame-tile-icon">🍀</div>
+                <div class="minigame-tile-name">카드 짝맞추기</div>
+                <div class="minigame-tile-desc">같은 그림 카드 두 장을 찾아 짝을 맞춰보세요</div>
+              </button>
+              <button type="button" class="minigame-tile" id="tile-minesweeper">
+                <div class="minigame-tile-icon">💣</div>
+                <div class="minigame-tile-name">지뢰찾기</div>
+                <div class="minigame-tile-desc">지뢰를 피해서 모든 칸을 열어보세요</div>
               </button>
             </div>
           </div>
@@ -658,6 +682,60 @@
               <div class="leaderboard-section">
                 <h4 class="leaderboard-title">🏆 랭킹 TOP 10 (반응 시간이 짧을수록 상위)</h4>
                 <ol class="leaderboard-list" id="leaderboard-reaction"></ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- 카드 짝맞추기 -->
+          <div id="minigame-view-memory" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-memory">← 게임 목록</button>
+            <div class="card mole-card">
+              <h3 class="section-heading"><span class="section-icon">🍀</span>카드 짝맞추기</h3>
+              <p class="baseball-rule">카드를 두 장씩 뒤집어서 같은 그림끼리 짝을 맞춰보세요. 16장을 전부 맞히면 끝나요!</p>
+
+              <div class="baseball-stats">
+                <span>시도 횟수: <strong id="memory-tries-count">0</strong>회</span>
+                <span>최고 기록: <strong id="memory-best">-</strong></span>
+              </div>
+
+              <button type="button" class="primary" id="memory-start-btn" style="width:100%; margin-bottom:18px;">🍀 새 게임</button>
+
+              <div class="memory-grid" id="memory-grid"></div>
+
+              <div class="baseball-win-banner hidden" id="memory-win-banner"></div>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10 (시도 횟수가 적을수록 상위)</h4>
+                <ol class="leaderboard-list" id="leaderboard-memory"></ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- 지뢰찾기 -->
+          <div id="minigame-view-minesweeper" class="hidden">
+            <button type="button" class="secondary minigame-back-btn" id="btn-back-from-minesweeper">← 게임 목록</button>
+            <div class="card mole-card">
+              <h3 class="section-heading"><span class="section-icon">💣</span>지뢰찾기</h3>
+              <p class="baseball-rule">
+                지뢰가 없는 칸을 전부 열면 승리예요. 숫자는 주변 8칸에 지뢰가 몇 개 있는지를 뜻해요.<br>
+                좌클릭: 칸 열기 · 우클릭: 지뢰로 의심되는 칸에 깃발 표시
+              </p>
+
+              <div class="baseball-stats">
+                <span>남은 지뢰: <strong id="minesweeper-mines-left">10</strong>개</span>
+                <span>시간: <strong id="minesweeper-timer">0</strong>초</span>
+                <span>최고 기록: <strong id="minesweeper-best">-</strong></span>
+              </div>
+
+              <button type="button" class="primary" id="minesweeper-start-btn" style="width:100%; margin-bottom:18px;">💣 새 게임</button>
+
+              <div class="minesweeper-grid" id="minesweeper-grid"></div>
+
+              <div class="baseball-win-banner hidden" id="minesweeper-result-banner"></div>
+
+              <div class="leaderboard-section">
+                <h4 class="leaderboard-title">🏆 랭킹 TOP 10 (시간이 짧을수록 상위)</h4>
+                <ol class="leaderboard-list" id="leaderboard-minesweeper"></ol>
               </div>
             </div>
           </div>
