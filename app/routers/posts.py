@@ -7,8 +7,16 @@ from repositories import comments as comments_repo
 from repositories import notifications as notifications_repo
 from repositories import reactions as reactions_repo
 from security import get_current_user
+from markdown_utils import render_markdown
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
+
+
+def _validate_category(category: str, is_admin: bool):
+    if category not in posts_repo.POST_CATEGORIES:
+        raise HTTPException(status_code=400, detail="올바르지 않은 카테고리예요.")
+    if category == posts_repo.ADMIN_ONLY_CATEGORY and not is_admin:
+        raise HTTPException(status_code=403, detail="공지는 관리자만 작성할 수 있어요.")
 
 
 @router.get("")
@@ -17,12 +25,18 @@ def list_posts(
     sort: str = Query(default="latest"),
     page: int | None = Query(default=None),
     page_size: int = Query(default=10),
+    category: str | None = Query(default=None),
 ):
     # page가 없으면 예전처럼 전체 목록(엑셀 출력, 홈 화면 개수 표시용)
     # page가 있으면 {items, total, page, page_size} 형태로 페이지네이션된 결과
     if page is None:
-        return posts_repo.list_posts(q=q, sort=sort)
-    return posts_repo.list_posts_page(q=q, sort=sort, page=page, page_size=page_size)
+        return posts_repo.list_posts(q=q, sort=sort, category=category)
+    return posts_repo.list_posts_page(q=q, sort=sort, page=page, page_size=page_size, category=category)
+
+
+@router.get("/categories")
+def list_categories():
+    return {"categories": posts_repo.POST_CATEGORIES, "admin_only": posts_repo.ADMIN_ONLY_CATEGORY}
 
 
 @router.get("/{post_id}")
@@ -30,12 +44,16 @@ def get_post(post_id: int):
     post = posts_repo.get_post(post_id)
     if post is None:
         raise HTTPException(status_code=404, detail="존재하지 않는 게시글이에요.")
+    # 저장은 마크다운 원문 그대로 해두고, 화면에 보여줄 안전한 HTML은 응답할 때 즉석에서 만든다.
+    # (그래야 글쓰기/수정 화면에서 "원본 마크다운"을 textarea에 그대로 다시 채워줄 수 있다.)
+    post["content_html"] = render_markdown(post["content"])
     return post
 
 
 @router.post("")
 def create_post(payload: PostCreate, current_user: dict = Depends(get_current_user)):
-    new_id = posts_repo.create_post(current_user["username"], payload.title, payload.content)
+    _validate_category(payload.category, current_user["is_admin"])
+    new_id = posts_repo.create_post(current_user["username"], payload.title, payload.content, payload.category)
     return {"id": new_id, "message": "게시글이 등록됐어요."}
 
 
@@ -50,7 +68,8 @@ def _check_owner(post_id: int, username: str):
 @router.put("/{post_id}")
 def update_post(post_id: int, payload: PostUpdate, current_user: dict = Depends(get_current_user)):
     _check_owner(post_id, current_user["username"])
-    posts_repo.update_post(post_id, payload.title, payload.content)
+    _validate_category(payload.category, current_user["is_admin"])
+    posts_repo.update_post(post_id, payload.title, payload.content, payload.category)
     return {"message": "수정됐어요."}
 
 

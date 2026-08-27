@@ -1,5 +1,5 @@
 """날씨: 외부 API(Open-Meteo)에서 30분마다 자동으로 가져오고, 사람이 직접 손으로도 남길 수 있는 기록.
-데이터는 PostgreSQL이 아니라 별도의 MongoDB(weather_db)에 저장돼요."""
+원본은 PostgreSQL에 저장되고, 10분마다 MongoDB로 백업돼요(관리자 페이지 > 날씨 백업 참고)."""
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from models import WeatherCreate

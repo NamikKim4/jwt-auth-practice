@@ -11,7 +11,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # 날씨 데이터 전용 DB. PostgreSQL(db)과는 완전히 별개의, 다른 종류(NoSQL)의 데이터베이스예요.
+  # 게시글/날씨 원본(PostgreSQL)을 주기적으로 복사해두는 백업 전용 DB. PostgreSQL(db)과는
+  # 완전히 별개의, 다른 종류(NoSQL)의 데이터베이스예요.
   # 회원가입/API 키/신용카드 필요 없는 완전 무료 이미지라 돈 나갈 일이 없어요.
   mongo:
     image: mongo:7
@@ -36,6 +37,7 @@ services:
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
       ADMIN_SIGNUP_CODE: ${ADMIN_SIGNUP_CODE}
       UPLOAD_DIR: "/app/uploads"
       MONGO_URI: "mongodb://mongo:27017"
@@ -44,10 +46,45 @@ services:
       WEATHER_LON: ${WEATHER_LON}
       WEATHER_FETCH_INTERVAL_SECONDS: ${WEATHER_FETCH_INTERVAL_SECONDS}
       BACKUP_SYNC_INTERVAL_SECONDS: ${BACKUP_SYNC_INTERVAL_SECONDS}
+      WEATHER_BACKUP_INTERVAL_SECONDS: ${WEATHER_BACKUP_INTERVAL_SECONDS}
     volumes:
       - uploads_data:/app/uploads
+
+  # PostgreSQL 테이블/스키마를 브라우저에서 눈으로 보기 위한 무료 관리 도구.
+  # 회원가입/API 키/신용카드 필요 없는 완전 무료 오픈소스 이미지라 돈 나갈 일이 없어요.
+  # 접속: http://localhost:5050
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: jwt-auth-pgadmin
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  # MongoDB 컬렉션을 브라우저에서 눈으로 보기 위한 무료 관리 도구.
+  # 마찬가지로 완전 무료 오픈소스 이미지예요.
+  # 접속: http://localhost:8081
+  mongo-express:
+    image: mongo-express:latest
+    container_name: jwt-auth-mongo-express
+    depends_on:
+      - mongo
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongo
+      ME_CONFIG_MONGODB_PORT: "27017"
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USERNAME}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD}
+    ports:
+      - "8081:8081"
 
 volumes:
   uploads_data:
   pgdata:
   mongodata:
+  pgadmin_data:

@@ -8,14 +8,20 @@ class SignupRequest(BaseModel):
     admin_code: str | None = None  # "관리자로 가입"을 선택했을 때만 값이 들어옴
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 class PostCreate(BaseModel):
     title: str
     content: str
+    category: str = "자유"
 
 
 class PostUpdate(BaseModel):
     title: str
     content: str
+    category: str = "자유"
 
 
 class CommentCreate(BaseModel):

@@ -13,6 +13,10 @@ SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or "change-this-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# 리프레시 토큰(자동 로그인 연장용)이 살아있는 기간. 액세스 토큰(30분)보다 훨씬 길게 잡아서,
+# 액세스 토큰이 만료돼도 이 기간 안에는 재로그인 없이 새 액세스 토큰을 계속 받아올 수 있게 한다.
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS") or "14")
+
 # 회원가입 화면에서 "관리자로 가입"을 선택했을 때 맞춰 입력해야 하는 코드.
 # 이 코드를 아는 사람만 관리자 계정을 만들 수 있음 (실제 배포 시에는 꼭 바꿔서 쓸 것).
 ADMIN_SIGNUP_CODE = os.environ.get("ADMIN_SIGNUP_CODE") or "admin1234"
@@ -35,3 +39,8 @@ WEATHER_FETCH_INTERVAL_SECONDS = int(os.environ.get("WEATHER_FETCH_INTERVAL_SECO
 
 # PostgreSQL의 게시글을 MongoDB로 자동 백업(복사)하는 주기(초). 기본 3600초 = 1시간.
 BACKUP_SYNC_INTERVAL_SECONDS = int(os.environ.get("BACKUP_SYNC_INTERVAL_SECONDS") or "3600")
+
+# PostgreSQL의 날씨 기록을 MongoDB로 자동 백업(복사)하는 주기(초). 기본 600초 = 10분.
+# 게시글보다 훨씬 자주 백업하는 이유는, 날씨는 30분마다 계속 새로 쌓이는 데이터라
+# 백업이 너무 뜸하면 최근 기록 여러 개가 한꺼번에 밀려서 백업되기 때문이다.
+WEATHER_BACKUP_INTERVAL_SECONDS = int(os.environ.get("WEATHER_BACKUP_INTERVAL_SECONDS") or "600")

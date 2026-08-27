@@ -1,4 +1,6 @@
 """비밀번호 해시, JWT 토큰 생성/검증, '로그인 필수' 의존성(get_current_user)을 담당하는 파일."""
+import hashlib
+import secrets
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
@@ -29,6 +31,20 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token() -> str:
+    """액세스 토큰과 달리 JWT가 아니라 그냥 예측 불가능한 랜덤 문자열이다.
+    어차피 매번 DB에 저장해둔 값과 대조해야만 유효한지 알 수 있는 구조라서 굳이 서명이 필요 없고,
+    오히려 자체적으로 검증 가능한 JWT를 리프레시에도 쓰면 "DB 확인 없이도 그냥 믿어버리는" 실수를
+    하기 쉬워서(=로그아웃해도 무효화가 안 되는 문제) 일부러 다른 방식으로 만든다."""
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """리프레시 토큰은 원본 문자열 그대로 DB에 저장하지 않고 해시로만 저장/대조한다.
+    DB가 통째로 유출되는 최악의 상황에도 토큰 원본을 복원해서 로그인 상태를 훔쳐갈 수 없게 하기 위함."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 credentials_exception = HTTPException(

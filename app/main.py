@@ -8,10 +8,11 @@ from fastapi.templating import Jinja2Templates
 
 from database import wait_for_db, ensure_tables
 from routers import (auth, posts, account, files, export, activity, products,
-                     admin, weather, backup, notifications, games)
+                     admin, weather, backup, weather_backup, notifications, games)
 from seed_data import seed_products
 from weather_fetcher import weather_background_loop
 from backup_sync import backup_background_loop
+from weather_backup_sync import weather_backup_background_loop
 
 app = FastAPI(title="jwt-auth-practice")
 templates = Jinja2Templates(directory="templates")
@@ -29,6 +30,7 @@ app.include_router(products.router)
 app.include_router(admin.router)
 app.include_router(weather.router)
 app.include_router(backup.router)
+app.include_router(weather_backup.router)
 app.include_router(notifications.router)
 app.include_router(games.router)
 
@@ -60,3 +62,5 @@ async def on_startup():
     asyncio.create_task(weather_background_loop())
     # 서버가 켜져있는 동안 계속 돌면서, 주기적으로 게시글을 MongoDB에 백업하는 백그라운드 작업 시작
     asyncio.create_task(backup_background_loop())
+    # 서버가 켜져있는 동안 계속 돌면서, 주기적으로 날씨 기록을 MongoDB에 백업하는 백그라운드 작업 시작
+    asyncio.create_task(weather_backup_background_loop())

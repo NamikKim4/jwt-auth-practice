@@ -1,7 +1,55 @@
   const TOKEN_KEY = "jwt_auth_practice_token";
+  const REFRESH_TOKEN_KEY = "jwt_auth_practice_refresh_token";
   const THEME_KEY = "jwt_auth_practice_theme";
   let CURRENT_USER = null;
   let EDITING_POST_ID = null;
+  let POST_CATEGORIES_CACHE = null; // { categories: [...], admin_only: "공지" }. 서버에서 한 번만 받아와 캐싱한다.
+
+  // 카테고리 이름(한글)마다 배지 색을 다르게 주기 위한 CSS 클래스 매핑. 목록에 없는 값은 기본색.
+  const CATEGORY_CLASS_MAP = { 질문: "cat-question", 정보: "cat-info", 기타: "cat-etc", 공지: "cat-notice" };
+  function categoryBadgeClass(category) {
+    return "cat-badge" + (CATEGORY_CLASS_MAP[category] ? " " + CATEGORY_CLASS_MAP[category] : "");
+  }
+
+  async function ensureCategoriesLoaded() {
+    if (POST_CATEGORIES_CACHE) return POST_CATEGORIES_CACHE;
+    try {
+      POST_CATEGORIES_CACHE = await api("/api/posts/categories");
+    } catch (e) {
+      POST_CATEGORIES_CACHE = { categories: ["자유"], admin_only: null };
+    }
+    return POST_CATEGORIES_CACHE;
+  }
+
+  // selectEl에 카테고리 옵션들을 채운다. includeAllOption이면 맨 앞에 "전체 카테고리"를 추가하고,
+  // 관리자가 아니면 공지(admin_only) 카테고리는 아예 목록에서 빼버린다(관리자만 고를 수 있어서).
+  function populateCategorySelect(selectEl, { includeAllOption, selected }) {
+    const { categories, admin_only } = POST_CATEGORIES_CACHE || { categories: [], admin_only: null };
+    const isAdmin = !!(CURRENT_USER && CURRENT_USER.is_admin);
+    selectEl.innerHTML = "";
+    if (includeAllOption) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "전체 카테고리";
+      selectEl.appendChild(opt);
+    }
+    categories.forEach((cat) => {
+      if (cat === admin_only && !isAdmin) return;
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat;
+      selectEl.appendChild(opt);
+    });
+    if (selected) selectEl.value = selected;
+  }
+  // 액세스 토큰이 만료돼서 401이 여러 개 동시에 떨어져도, 리프레시 요청 자체는 딱 한 번만
+  // 나가게 묶어두는 용도. (예: 화면 하나에서 API 여러 개를 한꺼번에 부르는 경우)
+  let REFRESHING_PROMISE = null;
+
+  function clearAuthTokens() {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
 
   // ---------- 라이트/다크 모드 ----------
   // (head의 인라인 스크립트가 로딩 시점에 이미 data-theme을 먼저 적용해뒀으므로,
@@ -68,15 +116,55 @@
 
   // ---------- API 헬퍼 ----------
 
-  async function api(path, options = {}) {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const headers = options.headers || {};
-    if (token) headers["Authorization"] = "Bearer " + token;
-    if (options.json !== undefined) {
-      headers["Content-Type"] = "application/json";
-      options.body = JSON.stringify(options.json);
+  // 리프레시 토큰으로 액세스/리프레시 토큰을 한 쌍 새로 받아온다. 실패하면 던진다.
+  async function refreshAccessToken() {
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!refreshToken) throw new Error("로그인이 필요해요.");
+    const res = await fetch("/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.detail) || "로그인이 만료됐어요. 다시 로그인해주세요.");
+    localStorage.setItem(TOKEN_KEY, data.access_token);
+    localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
+    return data.access_token;
+  }
+
+  // makeRequest: 매번 새로 fetch()를 만들어주는 함수(토큰을 매번 새로 읽어야 하므로).
+  // 401이 뜨면 리프레시 토큰으로 액세스 토큰을 새로 받아서 딱 한 번만 재시도한다.
+  // 그마저 실패하면(리프레시 토큰도 만료/무효) 로그인 화면으로 돌려보낸다.
+  async function fetchWithAutoRefresh(makeRequest) {
+    let res = await makeRequest();
+    if (res.status === 401 && localStorage.getItem(REFRESH_TOKEN_KEY)) {
+      try {
+        if (!REFRESHING_PROMISE) {
+          REFRESHING_PROMISE = refreshAccessToken().finally(() => { REFRESHING_PROMISE = null; });
+        }
+        await REFRESHING_PROMISE;
+        res = await makeRequest();
+      } catch (e) {
+        clearAuthTokens();
+        CURRENT_USER = null;
+        showAuthScreen();
+      }
     }
-    const res = await fetch(path, { ...options, headers });
+    return res;
+  }
+
+  async function api(path, options = {}) {
+    const res = await fetchWithAutoRefresh(() => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const headers = { ...(options.headers || {}) };
+      if (token) headers["Authorization"] = "Bearer " + token;
+      const fetchOptions = { ...options, headers };
+      if (options.json !== undefined) {
+        headers["Content-Type"] = "application/json";
+        fetchOptions.body = JSON.stringify(options.json);
+      }
+      return fetch(path, fetchOptions);
+    });
     let data = null;
     try { data = await res.json(); } catch (e) { /* no body */ }
     if (!res.ok) throw new Error((data && data.detail) || "요청 처리 중 오류가 발생했어요.");
@@ -226,8 +314,10 @@
 
   // ---------- 인증 포함 파일 다운로드 (blob) ----------
   async function downloadWithAuth(url, fallbackFilename) {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+    const res = await fetchWithAutoRefresh(() => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      return fetch(url, { headers: { Authorization: "Bearer " + token } });
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error((data && data.detail) || "다운로드에 실패했어요.");
@@ -366,11 +456,13 @@
     const formData = new FormData();
     formData.append("upload", input.files[0]);
     try {
-      const token = localStorage.getItem(TOKEN_KEY);
-      const res = await fetch("/api/files", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-        body: formData,
+      const res = await fetchWithAutoRefresh(() => {
+        const token = localStorage.getItem(TOKEN_KEY);
+        return fetch("/api/files", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          body: formData,
+        });
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "업로드에 실패했어요.");
@@ -437,7 +529,7 @@
     btn.disabled = true;
     try {
       await api("/account", { method: "DELETE", json: { password } });
-      localStorage.removeItem(TOKEN_KEY);
+      clearAuthTokens();
       CURRENT_USER = null;
       showAuthScreen();
       flash(msgBox, "계정이 삭제됐어요. 그동안 감사했습니다.", "ok");
@@ -540,6 +632,7 @@
       document.getElementById("admin-stat-weather").textContent = stats.weather;
 
       await loadBackupStatus();
+      await loadWeatherBackupStatus();
 
       const users = await api("/api/admin/users");
       document.getElementById("admin-user-count").textContent = "(" + users.length + ")";
@@ -656,6 +749,60 @@
       const result = await api("/api/admin/backup/run", { method: "POST" });
       flash(appMsgBox, result.message, "ok");
       await loadBackupStatus();
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🔄 지금 백업 실행";
+    }
+  });
+
+  async function loadWeatherBackupStatus() {
+    try {
+      const status = await api("/api/admin/weather-backup/status");
+      document.getElementById("weather-backup-stat-postgres").textContent = status.postgres_weather_count;
+      document.getElementById("weather-backup-stat-mongo").textContent = status.backed_up_count;
+      document.getElementById("weather-backup-last-synced").textContent = status.last_synced_at
+        ? timeAgo(status.last_synced_at)
+        : "아직 백업된 적 없음";
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    }
+
+    const tbody = document.getElementById("weather-backup-table-body");
+    tbody.innerHTML = "";
+    try {
+      const backupRecords = await api("/api/admin/weather-backup/records");
+      if (backupRecords.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="5"><div class="empty-state"><div class="icon">🍃</div>아직 MongoDB에 백업된 날씨 기록이 없어요.</div></td>`;
+        tbody.appendChild(tr);
+        return;
+      }
+      backupRecords.forEach((r) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="col-num">#${r.id}</td>
+          <td class="col-title">${r.emoji} ${r.city} · ${r.description}</td>
+          <td>${r.temperature_c != null ? r.temperature_c + "°C" : "-"}</td>
+          <td>${timeAgo(r.recorded_at)}</td>
+          <td>${timeAgo(r.backed_up_at)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      flash(appMsgBox, err.message, "err");
+    }
+  }
+
+  document.getElementById("btn-weather-backup-run").addEventListener("click", async () => {
+    const btn = document.getElementById("btn-weather-backup-run");
+    btn.disabled = true;
+    btn.textContent = "백업 중…";
+    try {
+      const result = await api("/api/admin/weather-backup/run", { method: "POST" });
+      flash(appMsgBox, result.message, "ok");
+      await loadWeatherBackupStatus();
     } catch (err) {
       flash(appMsgBox, err.message, "err");
     } finally {
@@ -859,23 +1006,27 @@
     await loadPostList();
   }
 
-  function showWriteView(editingPost) {
+  async function showWriteView(editingPost) {
     hideAllBoardViews();
     document.getElementById("view-write").classList.remove("hidden");
     const heading = document.getElementById("write-heading");
     const submitBtn = document.getElementById("post-submit");
+    await ensureCategoriesLoaded();
+    const categorySelect = document.getElementById("post-category-select");
     if (editingPost) {
       EDITING_POST_ID = editingPost.id;
       heading.textContent = "✏️ 글 수정";
       submitBtn.textContent = "수정 완료";
       document.getElementById("post-title").value = editingPost.title;
       document.getElementById("post-content").value = editingPost.content;
+      populateCategorySelect(categorySelect, { includeAllOption: false, selected: editingPost.category });
     } else {
       EDITING_POST_ID = null;
       heading.textContent = "✏️ 글쓰기";
       submitBtn.textContent = "등록";
       document.getElementById("post-title").value = "";
       document.getElementById("post-content").value = "";
+      populateCategorySelect(categorySelect, { includeAllOption: false, selected: "자유" });
     }
   }
 
@@ -891,7 +1042,11 @@
 
       const meta = document.getElementById("detail-meta");
       meta.innerHTML = "";
+      const catBadge = document.createElement("span");
+      catBadge.className = categoryBadgeClass(post.category);
+      catBadge.textContent = post.category;
       const authorSpan = document.createElement("span");
+      authorSpan.className = "dot";
       authorSpan.textContent = post.author;
       const timeSpan = document.createElement("span");
       timeSpan.className = "dot";
@@ -899,9 +1054,11 @@
       const viewChip = document.createElement("span");
       viewChip.className = "chip";
       viewChip.textContent = "👁 조회 " + post.views;
-      meta.append(authorSpan, timeSpan, viewChip);
+      meta.append(catBadge, authorSpan, timeSpan, viewChip);
 
-      document.getElementById("detail-content").textContent = post.content;
+      // 서버가 마크다운 원문을 미리 안전한 HTML로 바꿔서 content_html로 내려준다.
+      // (사용자 입력을 직접 innerHTML에 꽂는 게 아니라, 서버가 이스케이프까지 끝낸 결과물이라 안전하다.)
+      document.getElementById("detail-content").innerHTML = post.content_html;
 
       const isMine = post.author === CURRENT_USER.username;
       const editBtn = document.getElementById("btn-edit");
@@ -1489,6 +1646,13 @@
     const pagEl = document.getElementById("board-pagination");
     const q = document.getElementById("search-input").value.trim();
     const sort = document.getElementById("sort-select").value;
+    const categoryFilterEl = document.getElementById("category-filter-select");
+    if (!categoryFilterEl.options.length || categoryFilterEl.options.length === 1) {
+      await ensureCategoriesLoaded();
+      const prevValue = categoryFilterEl.value;
+      populateCategorySelect(categoryFilterEl, { includeAllOption: true, selected: prevValue });
+    }
+    const category = categoryFilterEl.value;
     if (page) CURRENT_PAGE = page;
     tbody.innerHTML = "";
     pagEl.innerHTML = "";
@@ -1496,6 +1660,7 @@
       const params = new URLSearchParams();
       if (q) params.set("q", q);
       params.set("sort", sort);
+      if (category) params.set("category", category);
       params.set("page", CURRENT_PAGE);
       params.set("page_size", BOARD_PAGE_SIZE);
       const data = await api("/api/posts?" + params.toString());
@@ -1523,8 +1688,8 @@
 
         const catTd = document.createElement("td");
         const badge = document.createElement("span");
-        badge.className = "cat-badge";
-        badge.textContent = "일반";
+        badge.className = categoryBadgeClass(post.category);
+        badge.textContent = post.category;
         catTd.appendChild(badge);
         tr.appendChild(catTd);
 
@@ -1631,6 +1796,7 @@
     searchDebounce = setTimeout(() => loadPostList(1), 300);
   });
   document.getElementById("sort-select").addEventListener("change", () => loadPostList(1));
+  document.getElementById("category-filter-select").addEventListener("change", () => loadPostList(1));
 
   async function handleDelete(postId) {
     if (!confirm("정말 이 글을 삭제할까요?")) return;
@@ -1651,15 +1817,16 @@
     e.preventDefault();
     const title = document.getElementById("post-title").value.trim();
     const content = document.getElementById("post-content").value.trim();
+    const category = document.getElementById("post-category-select").value;
     const submitBtn = document.getElementById("post-submit");
     submitBtn.disabled = true;
     try {
       if (EDITING_POST_ID) {
-        await api("/api/posts/" + EDITING_POST_ID, { method: "PUT", json: { title, content } });
+        await api("/api/posts/" + EDITING_POST_ID, { method: "PUT", json: { title, content, category } });
         flash(appMsgBox, "수정됐어요.", "ok");
         showDetailView(EDITING_POST_ID);
       } else {
-        const result = await api("/api/posts", { method: "POST", json: { title, content } });
+        const result = await api("/api/posts", { method: "POST", json: { title, content, category } });
         flash(appMsgBox, "글이 등록됐어요.", "ok");
         showDetailView(result.id);
       }
@@ -1670,8 +1837,20 @@
     }
   });
 
-  document.getElementById("logout-btn").addEventListener("click", () => {
-    localStorage.removeItem(TOKEN_KEY);
+  document.getElementById("logout-btn").addEventListener("click", async () => {
+    // 서버에도 "이 리프레시 토큰은 이제 못 써" 하고 알려서 진짜로 무효화시킨다.
+    // (실패해도 어차피 로그아웃은 진행돼야 하니 에러는 그냥 무시한다)
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (refreshToken) {
+      try {
+        await fetch("/logout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+      } catch (e) { /* 네트워크 문제 등으로 실패해도 로컬 로그아웃은 계속 진행 */ }
+    }
+    clearAuthTokens();
     CURRENT_USER = null;
     showAuthScreen();
     loginForm.reset();
@@ -1682,12 +1861,13 @@
 
   (async function init() {
     const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return;
+    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!token && !refreshToken) return;
     try {
       CURRENT_USER = await api("/me");
       showAppScreen();
     } catch (e) {
-      localStorage.removeItem(TOKEN_KEY);
+      clearAuthTokens();
     }
   })();
 
@@ -1750,6 +1930,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "로그인에 실패했어요.");
       localStorage.setItem(TOKEN_KEY, data.access_token);
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refresh_token);
       CURRENT_USER = await api("/me");
       showAppScreen();
     } catch (err) {
@@ -2542,6 +2723,7 @@
   function loseMinesweeperGame(hitIndex) {
     MS_PLAYING = false;
     stopMsTimer();
+    // 진 것도 볼 수 있게, 숨겨져 있던 지뢰를 전부 열어서 보여준다 (밟은 칸만 빨갛게 표시).
     MS_BOARD.forEach((cell, i) => {
       if (!cell.mine) return;
       const el = document.querySelector('.minesweeper-cell[data-index="' + i + '"]');
@@ -2561,6 +2743,7 @@
     const cell = MS_BOARD[i];
     if (cell.flagged || cell.revealed) return;
     if (!MS_STARTED) {
+      // 첫 클릭에서 바로 지뢰가 터지면 재미없으니, 이 칸을 피해서 그제서야 지뢰를 배치한다.
       placeMinesAvoiding(i);
       MS_STARTED = true;
       startMsTimer();
@@ -2571,7 +2754,7 @@
   }
 
   function handleMsCellRightClick(i, e) {
-    e.preventDefault();
+    e.preventDefault(); // 브라우저 기본 우클릭 메뉴 대신 깃발 표시로 쓴다
     if (!MS_PLAYING) return;
     const cell = MS_BOARD[i];
     if (cell.revealed) return;
@@ -2612,6 +2795,7 @@
   }
 
   function stopMinesweeperGame() {
+    // 다른 화면으로 넘어갈 때 시간 재는 타이머가 안 보이는 곳에서 계속 도는 일이 없게 정리한다.
     stopMsTimer();
     MS_PLAYING = false;
   }

@@ -242,6 +242,9 @@
             </div>
             <div class="board-toolbar">
               <input type="text" id="search-input" placeholder="제목·내용으로 검색" aria-label="게시글 검색">
+              <select id="category-filter-select" aria-label="카테고리 필터">
+                <option value="">전체 카테고리</option>
+              </select>
               <select id="sort-select" aria-label="정렬 기준">
                 <option value="latest">최신순</option>
                 <option value="views">조회수순</option>
@@ -301,11 +304,16 @@
             <form id="post-form">
               <h2 id="write-heading" style="font-size:16px; margin:0;">✏️ 글쓰기</h2>
               <div class="field">
+                <label for="post-category-select">카테고리</label>
+                <select id="post-category-select"></select>
+              </div>
+              <div class="field">
                 <label for="post-title">제목</label>
                 <input type="text" id="post-title" required maxlength="100">
               </div>
               <div class="field">
                 <label for="post-content">내용</label>
+                <p class="md-hint">마크다운 일부 지원: **굵게**, *기울임*, `코드`, # 제목, - 목록, &gt; 인용, [링크](https://…), 세 개짜리 백틱으로 코드블록</p>
                 <textarea id="post-content" required></textarea>
               </div>
               <div class="btn-row">
@@ -930,7 +938,7 @@
             <div class="home-card" style="cursor:default;">
               <div class="ic" aria-hidden="true">🌤️</div>
               <div class="num" id="admin-stat-weather">-</div>
-              <div class="label">날씨 기록 (MongoDB)</div>
+              <div class="label">날씨 기록 (PostgreSQL)</div>
             </div>
           </div>
 
@@ -983,6 +991,40 @@
                   </tr>
                 </thead>
                 <tbody id="backup-post-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:24px;">
+            <h3 class="section-heading"><span class="section-icon">🔄</span>날씨 백업 (PostgreSQL → MongoDB)</h3>
+            <p class="page-sub" style="margin-top:0;">날씨 기록 원본은 PostgreSQL에 그대로 두고, 같은 내용을 MongoDB에도 복사해두는 백업이에요. 10분마다 자동으로 실행되고, 아래 버튼으로 지금 바로 실행할 수도 있어요.</p>
+            <div class="home-grid" style="margin-bottom:16px;">
+              <div class="home-card" style="cursor:default;">
+                <div class="ic" aria-hidden="true">🌤️</div>
+                <div class="num" id="weather-backup-stat-postgres">-</div>
+                <div class="label">PostgreSQL 원본 기록 수</div>
+              </div>
+              <div class="home-card" style="cursor:default;">
+                <div class="ic" aria-hidden="true">🍃</div>
+                <div class="num" id="weather-backup-stat-mongo">-</div>
+                <div class="label">MongoDB 백업된 기록 수</div>
+              </div>
+            </div>
+            <p style="font-size:13px; color:var(--sub); margin:0 0 14px;">마지막 백업: <span id="weather-backup-last-synced">-</span></p>
+            <button class="secondary" id="btn-weather-backup-run">🔄 지금 백업 실행</button>
+
+            <div class="board-table-wrap" style="margin-top:18px;">
+              <table class="board-table">
+                <thead>
+                  <tr>
+                    <th style="width:70px;">번호</th>
+                    <th>도시 / 날씨</th>
+                    <th style="width:90px;">기온</th>
+                    <th style="width:110px;">기록 시각</th>
+                    <th style="width:110px;">백업 시각</th>
+                  </tr>
+                </thead>
+                <tbody id="weather-backup-table-body"></tbody>
               </table>
             </div>
           </div>

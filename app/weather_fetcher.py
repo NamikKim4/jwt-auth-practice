@@ -1,15 +1,17 @@
-"""외부(Open-Meteo) 날씨 API에서 날씨를 가져와 MongoDB에 저장하는 백그라운드 작업.
+"""외부(Open-Meteo) 날씨 API에서 날씨를 가져와 PostgreSQL에 저장하는 백그라운드 작업.
 
 Open-Meteo(https://open-meteo.com)는 회원가입도, API 키도, 신용카드 등록도 필요 없는
 완전 무료 API라서 골랐어요. 절대 돈이 나갈 일이 없어요.
+
+(저장소는 원래 MongoDB였는데, 나중에 게시글이랑 똑같이 PostgreSQL을 원본으로 두고
+주기적으로 MongoDB에 백업하는 구조로 바꿨어요. weather_backup_sync.py가 그 백업을 맡아요.)
 """
 import asyncio
-from datetime import datetime, timezone
 
 import requests
 
 from config import WEATHER_CITY_NAME, WEATHER_LAT, WEATHER_LON, WEATHER_FETCH_INTERVAL_SECONDS
-from mongo import get_weather_collection
+from repositories.weather import create_auto_weather
 
 # WMO 날씨 코드 → (한글 설명, 이모지). Open-Meteo가 숫자 코드로만 알려줘서 직접 매핑해요.
 WEATHER_CODE_MAP = {
@@ -72,16 +74,16 @@ def fetch_current_weather() -> dict:
         "wind_speed_ms": current.get("wind_speed_10m"),
         "description": description,
         "emoji": emoji,
-        "source": "auto",
-        "created_by": "자동 수집",
-        "recorded_at": datetime.now(timezone.utc),
     }
 
 
 def fetch_and_store_weather():
     doc = fetch_current_weather()
-    get_weather_collection().insert_one(doc)
-    print(f"[날씨] {doc['city']} {doc['temperature_c']}°C {doc['description']} — MongoDB에 저장 완료")
+    create_auto_weather(
+        doc["city"], doc["temperature_c"], doc["humidity_percent"],
+        doc["wind_speed_ms"], doc["description"], doc["emoji"],
+    )
+    print(f"[날씨] {doc['city']} {doc['temperature_c']}°C {doc['description']} — PostgreSQL에 저장 완료")
 
 
 async def weather_background_loop():

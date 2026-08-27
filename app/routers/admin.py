@@ -6,6 +6,7 @@ from repositories.posts import count_posts
 from repositories.files import count_files
 from repositories.products import count_products
 from repositories.weather import count_weather
+from repositories import tokens as tokens_repo
 from security import require_admin
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -35,4 +36,5 @@ def delete_user_route(username: str, current_admin: dict = Depends(require_admin
         raise HTTPException(status_code=404, detail="존재하지 않는 계정이에요.")
 
     delete_user(username)
+    tokens_repo.revoke_all_for_user(username)
     return {"message": f"{username} 계정을 삭제했어요."}
