@@ -115,6 +115,11 @@
     btn.addEventListener("click", () => gotoPage(btn.dataset.view));
   });
 
+  // 헤더의 "JWT 포털" 로고를 누르면 홈으로, 내 아이디/아바타를 누르면 프로필 사진·자기소개를
+  // 바로 바꿀 수 있는 "내 정보" 화면으로 이동한다.
+  document.getElementById("logo-home-btn").addEventListener("click", () => gotoPage("home"));
+  document.getElementById("header-user-btn").addEventListener("click", () => gotoPage("profile"));
+
   document.querySelectorAll(".home-card").forEach((btn) => {
     btn.addEventListener("click", () => {
       const goto = btn.dataset.goto;
